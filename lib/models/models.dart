@@ -1,0 +1,180 @@
+// Model cho sản phẩm nón
+class HatProduct {
+  final String id;
+  final String name;
+  final String brand;
+  final double price;
+  final String imageUrl;
+  final String category;
+  final List<String> colors; // Thay đổi từ String thành List<String>
+  final String material;
+  final String gender;
+  final String season;
+  final String description;
+  final int stock;
+  final double rating;
+  final int reviewCount;
+  final bool isHot;
+
+  HatProduct({
+    required this.id,
+    required this.name,
+    required this.brand,
+    required this.price,
+    required this.imageUrl,
+    required this.category,
+    required this.colors, // Thay đổi từ color thành colors
+    required this.material,
+    required this.gender,
+    required this.season,
+    required this.description,
+    required this.stock,
+    required this.rating,
+    required this.reviewCount,
+    this.isHot = false,
+  });
+}
+
+// Model cho đơn hàng
+class Order {
+  final String id;
+  final String userId;
+  final List<OrderItem> items;
+  final double totalAmount;
+  final String status;
+  final DateTime orderDate;
+  final String shippingAddress;
+  final String paymentMethod;
+
+  Order({
+    required this.id,
+    required this.userId,
+    required this.items,
+    required this.totalAmount,
+    required this.status,
+    required this.orderDate,
+    required this.shippingAddress,
+    required this.paymentMethod,
+  });
+}
+
+class OrderItem {
+  final String productId;
+  final String productName;
+  final String productImage;
+  final double price;
+  final int quantity;
+
+  OrderItem({
+    required this.productId,
+    required this.productName,
+    required this.productImage,
+    required this.price,
+    required this.quantity,
+  });
+}
+
+// Model cho người dùng
+class User {
+  final String id;
+  final String fullName;
+  final String email;
+  final String phone;
+  final String username;
+  final DateTime joinDate;
+  final bool isActive;
+  final int totalOrders;
+  final double totalSpent;
+
+  User({
+    required this.id,
+    required this.fullName,
+    required this.email,
+    required this.phone,
+    required this.username,
+    required this.joinDate,
+    this.isActive = true,
+    this.totalOrders = 0,
+    this.totalSpent = 0.0,
+  });
+}
+
+// Model cho địa chỉ (đơn giản nhưng có trường isDefault)
+class Address {
+  final String id;
+  final String name; // tên người nhận
+  final String phone;
+  final String street; // đường, số nhà
+  final String ward;
+  final String district;
+  final String city;
+  final bool isDefault;
+
+  Address({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.street,
+    required this.ward,
+    required this.district,
+    required this.city,
+    this.isDefault = false,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'phone': phone,
+      'street': street,
+      'ward': ward,
+      'district': district,
+      'city': city,
+      'isDefault': isDefault,
+    };
+  }
+
+  static Address fromMap(Map<String, dynamic> m) {
+    return Address(
+      id: m['id'] ?? (DateTime.now().millisecondsSinceEpoch.toString()),
+      name: m['name'] ?? '',
+      phone: m['phone'] ?? '',
+      street: m['street'] ?? '',
+      ward: m['ward'] ?? '',
+      district: m['district'] ?? '',
+      city: m['city'] ?? '',
+      isDefault: m['isDefault'] ?? false,
+    );
+  }
+}
+
+// Model cho báo cáo thống kê
+class SalesReport {
+  final DateTime date;
+  final double revenue;
+  final int orderCount;
+  final int newUsers;
+
+  SalesReport({
+    required this.date,
+    required this.revenue,
+    required this.orderCount,
+    required this.newUsers,
+  });
+}
+
+class ProductStats {
+  final String productId;
+  final String productName;
+  final int views;
+  final int purchases;
+  final double conversionRate;
+
+  ProductStats({
+    required this.productId,
+    required this.productName,
+    required this.views,
+    required this.purchases,
+    required this.conversionRate,
+  });
+}
