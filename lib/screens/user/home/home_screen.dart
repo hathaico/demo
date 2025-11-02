@@ -1,21 +1,19 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../../models/models.dart';
 import '../../../services/firebase_product_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../services/notification_service.dart';
-import '../../../services/wishlist_service.dart';
 import '../../../widgets/safe_network_image.dart';
 import '../../../widgets/shimmer_placeholder.dart';
 import '../products/product_detail_screen.dart';
 import '../products/products_screen.dart';
 import '../notifications/notifications_screen.dart';
-import '../user_main_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onViewAllProducts});
+
+  final VoidCallback? onViewAllProducts;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -23,32 +21,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  Set<String> _wishlistIds = <String>{};
-  StreamSubscription<void>? _wishlistSub;
-
-  @override
-  void initState() {
-    super.initState();
-    // Prefetch wishlist IDs and subscribe for changes
-    WishlistService.getWishlistIds().then((ids) {
-      if (!mounted) return;
-      setState(() {
-        _wishlistIds = ids;
-      });
-    });
-    _wishlistSub = WishlistService.changes.listen((_) async {
-      final ids = await WishlistService.getWishlistIds();
-      if (!mounted) return;
-      setState(() {
-        _wishlistIds = ids;
-      });
-    });
-  }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _wishlistSub?.cancel();
     super.dispose();
   }
 
@@ -367,13 +343,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        // Navigate to products screen
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const UserMainScreen(),
-                          ),
-                        );
+                        if (widget.onViewAllProducts != null) {
+                          widget.onViewAllProducts!();
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProductsScreen(),
+                            ),
+                          );
+                        }
                       },
                       child: Text(
                         'Xem tất cả',
@@ -597,49 +576,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: IconButton(
-                        icon: Icon(
-                          _wishlistIds.contains(product.id)
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color: _wishlistIds.contains(product.id)
-                              ? Colors.red
-                              : Colors.grey.shade600,
-                          size: 20,
-                        ),
-                        onPressed: () async {
-                          final wasAdded = await WishlistService.toggleWishlist(
-                            product,
-                          );
-                          HapticFeedback.lightImpact();
-                          if (!mounted) return;
-                          setState(() {
-                            if (wasAdded) {
-                              _wishlistIds.add(product.id);
-                            } else {
-                              _wishlistIds.remove(product.id);
-                            }
-                          });
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                wasAdded
-                                    ? 'Đã thêm "${product.name}" vào danh sách yêu thích'
-                                    : 'Đã xóa "${product.name}" khỏi danh sách yêu thích',
-                              ),
-                              backgroundColor: wasAdded
-                                  ? Colors.green
-                                  : Colors.orange,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                    // Wish list toggle removed per user request
                   ],
                 ),
               ),

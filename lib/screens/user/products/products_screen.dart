@@ -434,25 +434,46 @@ class _ProductsScreenState extends State<ProductsScreen> {
       }).toList();
     }
 
-    // Sort products
+    int Function(HatProduct, HatProduct) secondaryComparator;
     switch (_selectedSort) {
       case 'Giá thấp đến cao':
-        filtered.sort((a, b) => a.price.compareTo(b.price));
+        secondaryComparator = (a, b) => a.price.compareTo(b.price);
         break;
       case 'Giá cao đến thấp':
-        filtered.sort((a, b) => b.price.compareTo(a.price));
+        secondaryComparator = (a, b) => b.price.compareTo(a.price);
         break;
       case 'Đánh giá cao nhất':
-        filtered.sort((a, b) => b.rating.compareTo(a.rating));
+        secondaryComparator = (a, b) => b.rating.compareTo(a.rating);
         break;
       case 'Mới nhất':
-        // Assuming products with higher ID are newer
-        filtered.sort((a, b) => int.parse(b.id).compareTo(int.parse(a.id)));
+        secondaryComparator = (a, b) {
+          int? aId = int.tryParse(a.id);
+          int? bId = int.tryParse(b.id);
+          if (aId != null && bId != null) {
+            return bId.compareTo(aId);
+          }
+          return 0;
+        };
         break;
       default:
-        // Default sort - no change
+        secondaryComparator = (a, b) => 0;
         break;
     }
+
+    filtered.sort((a, b) {
+      final bool aHot = a.isHot;
+      final bool bHot = b.isHot;
+      if (aHot != bHot) {
+        return aHot ? -1 : 1;
+      }
+
+      final int secondary = secondaryComparator(a, b);
+      if (secondary != 0) {
+        return secondary;
+      }
+
+      return a.name.compareTo(b.name);
+    });
 
     return filtered;
   }

@@ -8,27 +8,30 @@ import 'account/account_screen.dart';
 import '../../services/cart_service.dart';
 
 class UserMainScreen extends StatefulWidget {
-  const UserMainScreen({super.key});
+  const UserMainScreen({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   @override
   State<UserMainScreen> createState() => _UserMainScreenState();
 }
 
 class _UserMainScreenState extends State<UserMainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   int _cartItemCount = 0;
   StreamSubscription<void>? _cartSubscription;
-
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const ProductsScreen(),
-    const CartScreen(),
-    const AccountScreen(),
-  ];
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex.clamp(0, 3);
+    _screens = [
+      HomeScreen(onViewAllProducts: () => _selectTab(1)),
+      const ProductsScreen(),
+      const CartScreen(),
+      const AccountScreen(),
+    ];
     _loadCartCount();
     // Lắng nghe thay đổi giỏ hàng để cập nhật badge theo thời gian thực
     _cartSubscription = CartService.changes.listen((_) {
@@ -46,20 +49,10 @@ class _UserMainScreenState extends State<UserMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-          if (index == 2) { // Cart tab
-            _loadCartCount();
-          }
-        },
+        onTap: _selectTab,
         type: BottomNavigationBarType.fixed,
         items: [
           const BottomNavigationBarItem(
@@ -118,12 +111,27 @@ class _UserMainScreenState extends State<UserMainScreen> {
     super.dispose();
   }
 
+  void _selectTab(int index) {
+    if (_currentIndex == index) {
+      if (index == 2) {
+        _loadCartCount();
+      }
+      return;
+    }
+
+    setState(() {
+      _currentIndex = index;
+    });
+
+    if (index == 2) {
+      _loadCartCount();
+    }
+  }
+
   void logout() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const LoginScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
     );
   }
 }

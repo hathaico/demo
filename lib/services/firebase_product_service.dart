@@ -33,6 +33,50 @@ class FirebaseProductService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      final HatProduct createdProduct = HatProduct(
+        id: docRef.id,
+        name: product.name,
+        brand: product.brand,
+        price: product.price,
+        imageUrl: product.imageUrl,
+        category: product.category,
+        colors: product.colors,
+        material: product.material,
+        gender: product.gender,
+        season: product.season,
+        description: product.description,
+        stock: product.stock,
+        rating: product.rating,
+        reviewCount: product.reviewCount,
+        isHot: product.isHot,
+      );
+
+      // Cache the freshly created product for faster subsequent reads.
+      _productCache[docRef.id] = createdProduct;
+      try {
+        await ProductCacheService.cacheProducts([createdProduct]);
+      } catch (_) {}
+
+      // Broadcast a notification so users know a new style just landed.
+      final String displayName = product.name.trim().isEmpty
+          ? 'Mẫu nón mới'
+          : product.name.trim();
+      try {
+        await NotificationService.createBroadcastNotification(
+          title: '$displayName vừa lên kệ',
+          body:
+              'Khám phá ngay mẫu nón mới toanh và chọn lựa phong cách của bạn!',
+          category: NotificationCategory.promotion,
+          extra: {
+            'productId': docRef.id,
+            'productName': product.name,
+            if (product.imageUrl.isNotEmpty) 'productImage': product.imageUrl,
+            'type': 'new_product',
+            'isHot': product.isHot,
+          },
+        );
+      } catch (_) {}
+
       return {
         'success': true,
         'productId': docRef.id,
