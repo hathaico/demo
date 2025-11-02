@@ -1,8 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart' as models;
 import 'firebase_auth_service.dart';
+import 'firebase_product_service.dart';
+import 'product_cache_service.dart';
 // FirebaseException is available via cloud_firestore import; no extra import needed.
 import 'dart:async';
+
+class InsufficientStockException implements Exception {
+  InsufficientStockException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 class FirebaseOrderService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -40,7 +50,16 @@ class FirebaseOrderService {
       // Tạo ID đơn hàng
       String orderId = 'ORD${DateTime.now().millisecondsSinceEpoch}';
 
-      // Chuyển đổi OrderItem thành Map
+      // Tổng hợp số lượng đặt cho từng sản phẩm để kiểm tra tồn kho chính xác
+      final Map<String, int> requestedQuantities = {};
+      final Map<String, String> requestedNames = {};
+      for (final item in items) {
+        requestedQuantities[item.productId] =
+            (requestedQuantities[item.productId] ?? 0) + item.quantity;
+        requestedNames[item.productId] = item.productName;
+      }
+
+      // Chuyển đổi OrderItem thành Map (giữ nguyên cấu trúc cũ)
       List<Map<String, dynamic>> itemsData = items
           .map(
             (item) => {
@@ -53,25 +72,91 @@ class FirebaseOrderService {
           )
           .toList();
 
-      // Tạo đơn hàng
-      // Use a client timestamp for orderDate so the newly-created order
-      // appears immediately in queries ordered by 'orderDate'. We still
-      // keep server timestamps for createdAt/updatedAt.
-      await _firestore.collection(_collection).doc(orderId).set({
-        'id': orderId,
-        'userId': userId,
-        'items': itemsData,
-        'totalAmount': totalAmount,
-        'status': 'Chờ xác nhận',
-        'orderDate': Timestamp.fromDate(DateTime.now()),
-        'shippingAddress': shippingAddress,
-        'paymentMethod': paymentMethod,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+      final Map<String, int> updatedStocks = {};
+
+      await _firestore.runTransaction((transaction) async {
+        final orderRef = _firestore.collection(_collection).doc(orderId);
+
+        for (final entry in requestedQuantities.entries) {
+          final productRef = _firestore.collection('products').doc(entry.key);
+          final productSnap = await transaction.get(productRef);
+
+          if (!productSnap.exists) {
+            throw InsufficientStockException(
+              'Sản phẩm với mã ${entry.key} hiện không tồn tại.',
+            );
+          }
+
+          final Map<String, dynamic> data = Map<String, dynamic>.from(
+            productSnap.data() as Map,
+          );
+
+          final String productName =
+              (data['name'] ?? requestedNames[entry.key] ?? 'Sản phẩm')
+                  .toString();
+          final int currentStock = _parseStock(data['stock']);
+
+          if (currentStock < entry.value) {
+            throw InsufficientStockException(
+              'Sản phẩm "$productName" chỉ còn $currentStock sản phẩm.',
+            );
+          }
+
+          final int newStock = currentStock - entry.value;
+          updatedStocks[entry.key] = newStock;
+
+          transaction.update(productRef, {
+            'stock': newStock,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        // Tạo đơn hàng trong cùng transaction để đảm bảo tính nhất quán
+        transaction.set(orderRef, {
+          'id': orderId,
+          'userId': userId,
+          'items': itemsData,
+          'totalAmount': totalAmount,
+          'status': 'Chờ xác nhận',
+          'orderDate': Timestamp.fromDate(DateTime.now()),
+          'shippingAddress': shippingAddress,
+          'paymentMethod': paymentMethod,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       });
 
-      // Cập nhật thống kê người dùng
+      // Cập nhật thống kê người dùng ngoài transaction để tránh khóa ghi kéo dài
       await _updateUserStats(userId, totalAmount);
+
+      // Nếu đơn hàng sử dụng các sản phẩm được chọn từ giỏ hàng, hãy loại
+      // bỏ chúng khỏi giỏ sau khi đặt hàng thành công để tránh đặt lại
+      // nhầm. Việc thanh lý này chỉ chạy nếu app sử dụng cart/cartItems.
+      try {
+        final batch = _firestore.batch();
+        for (final item in items) {
+          final cartItemRef = _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('cart')
+              .doc(item.productId);
+          batch.delete(cartItemRef);
+        }
+        await batch.commit();
+      } catch (_) {}
+
+      // Làm mới cache sản phẩm để phản ánh tồn kho mới
+      for (final productId in updatedStocks.keys) {
+        try {
+          final updatedProduct = await FirebaseProductService.getProductById(
+            productId,
+            forceRefresh: true,
+          );
+          if (updatedProduct != null) {
+            await ProductCacheService.cacheProducts([updatedProduct]);
+          }
+        } catch (_) {}
+      }
 
       // Emit local event so UI listeners can show the new order immediately
       try {
@@ -86,9 +171,7 @@ class FirebaseOrderService {
           'paymentMethod': paymentMethod,
         };
         final models.Order createdOrder = _mapToOrder(createdData);
-        // Keep a pending copy so screens that subscribe later can consume it.
         _pendingCreatedOrders.add(createdOrder);
-        // Non-blocking broadcast for currently-listening screens
         _orderCreatedController.add(createdOrder);
       } catch (_) {}
 
@@ -97,6 +180,8 @@ class FirebaseOrderService {
         'orderId': orderId,
         'message': 'Tạo đơn hàng thành công',
       };
+    } on InsufficientStockException catch (e) {
+      return {'success': false, 'error': e.message};
     } catch (e) {
       return {'success': false, 'error': 'Lỗi tạo đơn hàng: $e'};
     }
@@ -123,6 +208,15 @@ class FirebaseOrderService {
         'error': 'Lỗi cập nhật trạng thái đơn hàng: $e',
       };
     }
+  }
+
+  static int _parseStock(dynamic stockValue) {
+    if (stockValue is int) return stockValue;
+    if (stockValue is num) return stockValue.toInt();
+    if (stockValue is String) {
+      return int.tryParse(stockValue) ?? 0;
+    }
+    return 0;
   }
 
   // Hủy đơn hàng

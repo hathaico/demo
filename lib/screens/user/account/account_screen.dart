@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../../../models/models.dart';
 import '../../../services/firebase_auth_service.dart';
@@ -11,6 +12,7 @@ import 'addresses_screen.dart';
 import 'user_settings_screen.dart';
 import '../support/user_support_screen.dart';
 import '../help/user_help_screen.dart';
+import '../notifications/notifications_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -20,11 +22,25 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
+  static const String _defaultSeenOrdersKey = 'account_seen_orders_default';
   User? _currentUser;
   List<Order> _orders = [];
   StreamSubscription? _authSub;
   StreamSubscription<List<Order>>? _ordersSub;
   StreamSubscription<Order>? _orderCreatedSub;
+  String _seenOrdersKey = _defaultSeenOrdersKey;
+  Set<String> _seenOrderIds = <String>{};
+  int _unseenOrderCount = 0;
+
+  String _prefKeyForUserId(String? userId) {
+    final String fallbackId = FirebaseAuthService.currentUser?.uid ?? '';
+    final String effective =
+        ((userId?.isNotEmpty ?? false) ? userId! : fallbackId).trim();
+    if (effective.isEmpty || effective == 'default') {
+      return _defaultSeenOrdersKey;
+    }
+    return 'account_seen_orders_$effective';
+  }
 
   @override
   void initState() {
@@ -50,6 +66,15 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!exists) {
         setState(() {
           _orders.insert(0, order);
+          final Set<String> currentIds = _orders
+              .map((o) => o.id)
+              .where((id) => id.isNotEmpty)
+              .toSet();
+          final Set<String> filteredSeen = _seenOrderIds.intersection(
+            currentIds,
+          );
+          _seenOrderIds = filteredSeen;
+          _unseenOrderCount = currentIds.difference(filteredSeen).length;
         });
       }
     });
@@ -62,11 +87,18 @@ class _AccountScreenState extends State<AccountScreen> {
     // Start a fresh subscription (FirebaseOrderService returns an empty
     // stream if user is not signed in). We keep the latest orders in _orders.
     _ordersSub = FirebaseOrderService.getUserOrdersStream().listen((orders) {
-      if (mounted) {
-        setState(() {
-          _orders = orders;
-        });
-      }
+      if (!mounted) return;
+      final Set<String> currentIds = orders
+          .map((o) => o.id)
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final Set<String> filteredSeen = _seenOrderIds.intersection(currentIds);
+      final int unseen = currentIds.difference(filteredSeen).length;
+      setState(() {
+        _orders = orders;
+        _seenOrderIds = filteredSeen;
+        _unseenOrderCount = unseen;
+      });
     });
   }
 
@@ -77,22 +109,44 @@ class _AccountScreenState extends State<AccountScreen> {
 
       // Lấy đơn hàng của người dùng
       List<Order> orders = await FirebaseOrderService.getUserOrders();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String prefKey = _prefKeyForUserId(
+        user?.id ?? FirebaseAuthService.currentUser?.uid,
+      );
+      final Set<String> currentIds = orders
+          .map((o) => o.id)
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final List<String> storedList = prefs.getStringList(prefKey) ?? const [];
+      final Set<String> storedSeen = storedList
+          .where((id) => currentIds.contains(id))
+          .toSet();
+      final int unseen = currentIds.difference(storedSeen).length;
+
+      final User normalizedUser =
+          user ??
+          User(
+            id: 'default',
+            fullName: 'Người dùng',
+            email: 'user@example.com',
+            phone: '',
+            username: 'user',
+            joinDate: DateTime.now(),
+            totalOrders: 0,
+            totalSpent: 0,
+          );
+
+      if (!mounted) return;
 
       setState(() {
-        _currentUser =
-            user ??
-            User(
-              id: 'default',
-              fullName: 'Người dùng',
-              email: 'user@example.com',
-              phone: '',
-              username: 'user',
-              joinDate: DateTime.now(),
-              totalOrders: 0,
-              totalSpent: 0,
-            );
+        _currentUser = normalizedUser;
         _orders = orders.isNotEmpty ? orders : [];
+        _seenOrdersKey = prefKey;
+        _seenOrderIds = storedSeen;
+        _unseenOrderCount = unseen;
       });
+
+      await prefs.setStringList(prefKey, storedSeen.toList());
       // Consume any pending created orders that were emitted before this
       // screen subscribed. This ensures newly-created orders are visible
       // immediately even if the UI was created after order creation.
@@ -101,8 +155,16 @@ class _AccountScreenState extends State<AccountScreen> {
         for (var o in pending) {
           if (o.userId == _currentUser?.id &&
               !_orders.any((x) => x.id == o.id)) {
+            if (!mounted) break;
             setState(() {
               _orders.insert(0, o);
+              final Set<String> ids = _orders
+                  .map((order) => order.id)
+                  .where((id) => id.isNotEmpty)
+                  .toSet();
+              final Set<String> filteredSeen = _seenOrderIds.intersection(ids);
+              _seenOrderIds = filteredSeen;
+              _unseenOrderCount = ids.difference(filteredSeen).length;
             });
           }
         }
@@ -111,6 +173,7 @@ class _AccountScreenState extends State<AccountScreen> {
       _subscribeOrdersStream();
     } catch (e) {
       // Fallback về dữ liệu mặc định
+      if (!mounted) return;
       setState(() {
         _currentUser = User(
           id: 'default',
@@ -123,6 +186,9 @@ class _AccountScreenState extends State<AccountScreen> {
           totalSpent: 0,
         );
         _orders = [];
+        _seenOrdersKey = _defaultSeenOrdersKey;
+        _seenOrderIds = <String>{};
+        _unseenOrderCount = 0;
       });
       // If load failed, still attempt to (re)subscribe so UI can update on auth
       // changes.
@@ -340,7 +406,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (_orders.isNotEmpty)
+                        if (_unseenOrderCount > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -352,7 +418,7 @@ class _AccountScreenState extends State<AccountScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              _orders.length.toString(),
+                              _unseenOrderCount.toString(),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
@@ -580,11 +646,27 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
+  Future<void> _markOrdersAsSeen() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final Set<String> ids = _orders
+        .map((o) => o.id)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    await prefs.setStringList(_seenOrdersKey, ids.toList());
+    if (!mounted) return;
+    setState(() {
+      _seenOrderIds = ids;
+      _unseenOrderCount = 0;
+    });
+  }
+
   void _showOrders() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const OrdersScreen()),
-    );
+    ).then((_) {
+      _markOrdersAsSeen();
+    });
   }
 
   void _showWishlist() {
@@ -602,8 +684,9 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   void _showNotifications() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tính năng thông báo sẽ được cập nhật')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NotificationsScreen()),
     );
   }
 

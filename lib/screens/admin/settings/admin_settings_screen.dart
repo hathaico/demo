@@ -19,199 +19,196 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        title: const Text('Cài đặt'),
-        backgroundColor: Colors.grey.shade800,
-        foregroundColor: Colors.white,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // General Settings
-          _buildSectionHeader('Cài đặt chung'),
-          _buildSettingsCard([
-            _buildSwitchTile(
-              'Thông báo',
-              'Nhận thông báo về đơn hàng và hệ thống',
-              _notificationsEnabled,
-              (value) => setState(() => _notificationsEnabled = value),
-              Icons.notifications,
-            ),
-            _buildSwitchTile(
-              'Chế độ tối',
-              'Sử dụng giao diện tối',
-              _darkModeEnabled,
-              (value) => setState(() => _darkModeEnabled = value),
-              Icons.dark_mode,
-            ),
-            _buildDropdownTile(
-              'Ngôn ngữ',
-              _selectedLanguage,
-              ['Tiếng Việt', 'Tiếng Anh', 'Tiếng Trung'],
-              (value) => setState(() => _selectedLanguage = value!),
-              Icons.language,
-            ),
-            _buildDropdownTile(
-              'Đơn vị tiền tệ',
-              _selectedCurrency,
-              ['VND', 'USD', 'EUR'],
-              (value) => setState(() => _selectedCurrency = value!),
-              Icons.attach_money,
-            ),
-          ]),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // General Settings
+            _buildSectionHeader('Cài đặt chung'),
+            _buildSettingsCard([
+              _buildSwitchTile(
+                'Thông báo',
+                'Nhận thông báo về đơn hàng và hệ thống',
+                _notificationsEnabled,
+                (value) => setState(() => _notificationsEnabled = value),
+                Icons.notifications,
+              ),
+              _buildSwitchTile(
+                'Chế độ tối',
+                'Sử dụng giao diện tối',
+                _darkModeEnabled,
+                (value) => setState(() => _darkModeEnabled = value),
+                Icons.dark_mode,
+              ),
+              _buildDropdownTile(
+                'Ngôn ngữ',
+                _selectedLanguage,
+                ['Tiếng Việt', 'Tiếng Anh', 'Tiếng Trung'],
+                (value) => setState(() => _selectedLanguage = value!),
+                Icons.language,
+              ),
+              _buildDropdownTile(
+                'Đơn vị tiền tệ',
+                _selectedCurrency,
+                ['VND', 'USD', 'EUR'],
+                (value) => setState(() => _selectedCurrency = value!),
+                Icons.attach_money,
+              ),
+            ]),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // System Settings
-          _buildSectionHeader('Hệ thống'),
-          _buildSettingsCard([
-            _buildSwitchTile(
-              'Sao lưu tự động',
-              'Tự động sao lưu dữ liệu hàng ngày',
-              _autoBackupEnabled,
-              (value) => setState(() => _autoBackupEnabled = value),
-              Icons.backup,
-            ),
-            _buildActionTile(
-              'Xóa cache',
-              'Xóa dữ liệu cache để tăng hiệu suất',
-              () => _clearCache(),
-              Icons.delete_sweep,
-            ),
-            _buildActionTile(
-              'Kiểm tra cập nhật',
-              'Kiểm tra phiên bản mới',
-              () => _checkUpdates(),
-              Icons.system_update,
-            ),
-            _buildActionTile(
-              'Kiểm tra Firebase',
-              'Test kết nối Firebase & Firestore',
-              () => _testFirebase(),
-              Icons.check_circle,
-            ),
-            _buildActionTile(
-              'Khởi động lại hệ thống',
-              'Khởi động lại toàn bộ hệ thống',
-              () => _restartSystem(),
-              Icons.restart_alt,
-            ),
-          ]),
+            // System Settings
+            _buildSectionHeader('Hệ thống'),
+            _buildSettingsCard([
+              _buildSwitchTile(
+                'Sao lưu tự động',
+                'Tự động sao lưu dữ liệu hàng ngày',
+                _autoBackupEnabled,
+                (value) => setState(() => _autoBackupEnabled = value),
+                Icons.backup,
+              ),
+              _buildActionTile(
+                'Xóa cache',
+                'Xóa dữ liệu cache để tăng hiệu suất',
+                () => _clearCache(),
+                Icons.delete_sweep,
+              ),
+              _buildActionTile(
+                'Kiểm tra cập nhật',
+                'Kiểm tra phiên bản mới',
+                () => _checkUpdates(),
+                Icons.system_update,
+              ),
+              _buildActionTile(
+                'Kiểm tra Firebase',
+                'Test kết nối Firebase & Firestore',
+                () => _testFirebase(),
+                Icons.check_circle,
+              ),
+              _buildActionTile(
+                'Khởi động lại hệ thống',
+                'Khởi động lại toàn bộ hệ thống',
+                () => _restartSystem(),
+                Icons.restart_alt,
+              ),
+            ]),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Security Settings
-          _buildSectionHeader('Bảo mật'),
-          _buildSettingsCard([
-            _buildActionTile(
-              'Đổi mật khẩu',
-              'Thay đổi mật khẩu admin',
-              () => _changePassword(),
-              Icons.lock,
-            ),
-            _buildActionTile(
-              'Xác thực 2FA',
-              'Bật xác thực hai yếu tố',
-              () => _setup2FA(),
-              Icons.security,
-            ),
-            _buildActionTile(
-              'Lịch sử đăng nhập',
-              'Xem lịch sử đăng nhập',
-              () => _viewLoginHistory(),
-              Icons.history,
-            ),
-            _buildActionTile(
-              'Quản lý phiên',
-              'Quản lý các phiên đăng nhập',
-              () => _manageSessions(),
-              Icons.devices,
-            ),
-          ]),
+            // Security Settings
+            _buildSectionHeader('Bảo mật'),
+            _buildSettingsCard([
+              _buildActionTile(
+                'Đổi mật khẩu',
+                'Thay đổi mật khẩu admin',
+                () => _changePassword(),
+                Icons.lock,
+              ),
+              _buildActionTile(
+                'Xác thực 2FA',
+                'Bật xác thực hai yếu tố',
+                () => _setup2FA(),
+                Icons.security,
+              ),
+              _buildActionTile(
+                'Lịch sử đăng nhập',
+                'Xem lịch sử đăng nhập',
+                () => _viewLoginHistory(),
+                Icons.history,
+              ),
+              _buildActionTile(
+                'Quản lý phiên',
+                'Quản lý các phiên đăng nhập',
+                () => _manageSessions(),
+                Icons.devices,
+              ),
+            ]),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Data Management
-          _buildSectionHeader('Quản lý dữ liệu'),
-          _buildSettingsCard([
-            _buildActionTile(
-              'Sao lưu dữ liệu',
-              'Tạo bản sao lưu toàn bộ dữ liệu',
-              () => _backupData(),
-              Icons.cloud_upload,
-            ),
-            _buildActionTile(
-              'Khôi phục dữ liệu',
-              'Khôi phục dữ liệu từ bản sao lưu',
-              () => _restoreData(),
-              Icons.cloud_download,
-            ),
-            _buildActionTile(
-              'Xuất dữ liệu',
-              'Xuất dữ liệu ra file Excel/CSV',
-              () => _exportData(),
-              Icons.file_download,
-            ),
-            _buildActionTile(
-              'Xóa dữ liệu cũ',
-              'Xóa dữ liệu cũ hơn 1 năm',
-              () => _cleanOldData(),
-              Icons.cleaning_services,
-            ),
-          ]),
+            // Data Management
+            _buildSectionHeader('Quản lý dữ liệu'),
+            _buildSettingsCard([
+              _buildActionTile(
+                'Sao lưu dữ liệu',
+                'Tạo bản sao lưu toàn bộ dữ liệu',
+                () => _backupData(),
+                Icons.cloud_upload,
+              ),
+              _buildActionTile(
+                'Khôi phục dữ liệu',
+                'Khôi phục dữ liệu từ bản sao lưu',
+                () => _restoreData(),
+                Icons.cloud_download,
+              ),
+              _buildActionTile(
+                'Xuất dữ liệu',
+                'Xuất dữ liệu ra file Excel/CSV',
+                () => _exportData(),
+                Icons.file_download,
+              ),
+              _buildActionTile(
+                'Xóa dữ liệu cũ',
+                'Xóa dữ liệu cũ hơn 1 năm',
+                () => _cleanOldData(),
+                Icons.cleaning_services,
+              ),
+            ]),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // App Settings
-          _buildSectionHeader('Ứng dụng'),
-          _buildSettingsCard([
-            _buildActionTile(
-              'Thông tin ứng dụng',
-              'Phiên bản và thông tin chi tiết',
-              () => _showAppInfo(),
-              Icons.info,
-            ),
-            _buildActionTile(
-              'Điều khoản sử dụng',
-              'Xem điều khoản và chính sách',
-              () => _showTerms(),
-              Icons.description,
-            ),
-            _buildActionTile(
-              'Liên hệ hỗ trợ',
-              'Liên hệ với đội ngũ hỗ trợ',
-              () => _contactSupport(),
-              Icons.support_agent,
-            ),
-            _buildActionTile(
-              'Đánh giá ứng dụng',
-              'Đánh giá ứng dụng trên store',
-              () => _rateApp(),
-              Icons.star_rate,
-            ),
-          ]),
+            // App Settings
+            _buildSectionHeader('Ứng dụng'),
+            _buildSettingsCard([
+              _buildActionTile(
+                'Thông tin ứng dụng',
+                'Phiên bản và thông tin chi tiết',
+                () => _showAppInfo(),
+                Icons.info,
+              ),
+              _buildActionTile(
+                'Điều khoản sử dụng',
+                'Xem điều khoản và chính sách',
+                () => _showTerms(),
+                Icons.description,
+              ),
+              _buildActionTile(
+                'Liên hệ hỗ trợ',
+                'Liên hệ với đội ngũ hỗ trợ',
+                () => _contactSupport(),
+                Icons.support_agent,
+              ),
+              _buildActionTile(
+                'Đánh giá ứng dụng',
+                'Đánh giá ứng dụng trên store',
+                () => _rateApp(),
+                Icons.star_rate,
+              ),
+            ]),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Danger Zone
-          _buildSectionHeader('Khu vực nguy hiểm'),
-          _buildSettingsCard([
-            _buildDangerTile(
-              'Đặt lại cài đặt',
-              'Khôi phục tất cả cài đặt về mặc định',
-              () => _resetSettings(),
-              Icons.restore,
-            ),
-            _buildDangerTile(
-              'Xóa tài khoản',
-              'Xóa vĩnh viễn tài khoản admin',
-              () => _deleteAccount(),
-              Icons.person_remove,
-            ),
-          ]),
+            // Danger Zone
+            _buildSectionHeader('Khu vực nguy hiểm'),
+            _buildSettingsCard([
+              _buildDangerTile(
+                'Đặt lại cài đặt',
+                'Khôi phục tất cả cài đặt về mặc định',
+                () => _resetSettings(),
+                Icons.restore,
+              ),
+              _buildDangerTile(
+                'Xóa tài khoản',
+                'Xóa vĩnh viễn tài khoản admin',
+                () => _deleteAccount(),
+                Icons.person_remove,
+              ),
+            ]),
 
-          const SizedBox(height: 40),
-        ],
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }
@@ -221,10 +218,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -243,13 +237,17 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
-  Widget _buildSwitchTile(String title, String subtitle, bool value, ValueChanged<bool> onChanged, IconData icon) {
+  Widget _buildSwitchTile(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+    IconData icon,
+  ) {
     return ListTile(
       leading: Icon(icon, color: Colors.grey.shade600),
       title: Text(title),
@@ -262,7 +260,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     );
   }
 
-  Widget _buildDropdownTile(String title, String value, List<String> items, ValueChanged<String?> onChanged, IconData icon) {
+  Widget _buildDropdownTile(
+    String title,
+    String value,
+    List<String> items,
+    ValueChanged<String?> onChanged,
+    IconData icon,
+  ) {
     return ListTile(
       leading: Icon(icon, color: Colors.grey.shade600),
       title: Text(title),
@@ -271,17 +275,19 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         value: value,
         underline: const SizedBox(),
         items: items.map((String item) {
-          return DropdownMenuItem<String>(
-            value: item,
-            child: Text(item),
-          );
+          return DropdownMenuItem<String>(value: item, child: Text(item));
         }).toList(),
         onChanged: onChanged,
       ),
     );
   }
 
-  Widget _buildActionTile(String title, String subtitle, VoidCallback onTap, IconData icon) {
+  Widget _buildActionTile(
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+    IconData icon,
+  ) {
     return ListTile(
       leading: Icon(icon, color: Colors.grey.shade600),
       title: Text(title),
@@ -291,13 +297,15 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     );
   }
 
-  Widget _buildDangerTile(String title, String subtitle, VoidCallback onTap, IconData icon) {
+  Widget _buildDangerTile(
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+    IconData icon,
+  ) {
     return ListTile(
       leading: Icon(icon, color: Colors.red.shade600),
-      title: Text(
-        title,
-        style: TextStyle(color: Colors.red.shade600),
-      ),
+      title: Text(title, style: TextStyle(color: Colors.red.shade600)),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: onTap,
@@ -330,9 +338,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   }
 
   void _checkUpdates() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đang kiểm tra cập nhật...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Đang kiểm tra cập nhật...')));
   }
 
   void _restartSystem() {
@@ -372,13 +380,10 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           children: [
             const Text(
               'Đổi mật khẩu',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             TextField(
               decoration: const InputDecoration(
                 labelText: 'Mật khẩu hiện tại',
@@ -387,7 +392,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               obscureText: true,
             ),
             const SizedBox(height: 12),
-            
+
             TextField(
               decoration: const InputDecoration(
                 labelText: 'Mật khẩu mới',
@@ -396,7 +401,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               obscureText: true,
             ),
             const SizedBox(height: 12),
-            
+
             TextField(
               decoration: const InputDecoration(
                 labelText: 'Xác nhận mật khẩu mới',
@@ -404,9 +409,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               ),
               obscureText: true,
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             Row(
               children: [
                 Expanded(
@@ -421,7 +426,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                     onPressed: () {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Đổi mật khẩu thành công')),
+                        const SnackBar(
+                          content: Text('Đổi mật khẩu thành công'),
+                        ),
                       );
                     },
                     child: const Text('Đổi mật khẩu'),
@@ -443,7 +450,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
   void _viewLoginHistory() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tính năng lịch sử đăng nhập sẽ được cập nhật')),
+      const SnackBar(
+        content: Text('Tính năng lịch sử đăng nhập sẽ được cập nhật'),
+      ),
     );
   }
 
@@ -454,14 +463,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   }
 
   void _backupData() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đang tạo bản sao lưu...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Đang tạo bản sao lưu...')));
   }
 
   void _restoreData() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tính năng khôi phục dữ liệu sẽ được cập nhật')),
+      const SnackBar(
+        content: Text('Tính năng khôi phục dữ liệu sẽ được cập nhật'),
+      ),
     );
   }
 
@@ -545,7 +556,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Đặt lại cài đặt'),
-        content: const Text('Bạn có chắc chắn muốn đặt lại tất cả cài đặt về mặc định?'),
+        content: const Text(
+          'Bạn có chắc chắn muốn đặt lại tất cả cài đặt về mặc định?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -570,7 +583,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xóa tài khoản'),
-        content: const Text('Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản admin? Hành động này không thể hoàn tác.'),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản admin? Hành động này không thể hoàn tác.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -583,9 +598,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 const SnackBar(content: Text('Tài khoản đã được xóa')),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Xóa'),
           ),
         ],
@@ -618,7 +631,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
     if (context.mounted) {
       Navigator.pop(context);
-      
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -649,11 +662,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
   Widget _buildTestResult(String label, Map<String, dynamic>? result) {
     if (result == null) return const SizedBox();
-    
+
     final bool success = result['success'] == true;
     final String message = result['message'] ?? result['error'] ?? '';
     final int? count = result['count'];
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -675,10 +688,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 if (count != null) Text('Số lượng: $count'),
                 Text(
                   message,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
             ),

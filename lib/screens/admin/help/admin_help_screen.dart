@@ -13,8 +13,8 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Trợ Giúp'),
-        backgroundColor: Colors.grey.shade800,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color.from(alpha: 1, red: 1, green: 1, blue: 1),
+        foregroundColor: const Color.fromRGBO(0, 0, 0, 1),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -23,25 +23,25 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
           _buildSectionTitle('Liên kết nhanh'),
           _buildQuickLinks(),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
           // Common Tasks
           _buildSectionTitle('Tác vụ thường dùng'),
           _buildCommonTasks(),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
           // FAQs
           _buildSectionTitle('Câu hỏi thường gặp'),
           _buildFAQs(),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
           // System Guide
           _buildSectionTitle('Hướng dẫn hệ thống'),
           _buildSystemGuides(),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
           // Keyboard Shortcuts
           _buildSectionTitle('Phím tắt'),
@@ -112,11 +112,7 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
         'title': 'Thêm sản phẩm mới',
         'color': Colors.green,
       },
-      {
-        'icon': Icons.edit,
-        'title': 'Chỉnh sửa sản phẩm',
-        'color': Colors.blue,
-      },
+      {'icon': Icons.edit, 'title': 'Chỉnh sửa sản phẩm', 'color': Colors.blue},
       {
         'icon': Icons.update,
         'title': 'Cập nhật trạng thái đơn hàng',
@@ -127,11 +123,7 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
         'title': 'Khóa/Mở khóa tài khoản',
         'color': Colors.red,
       },
-      {
-        'icon': Icons.report,
-        'title': 'Xem báo cáo',
-        'color': Colors.purple,
-      },
+      {'icon': Icons.report, 'title': 'Xem báo cáo', 'color': Colors.purple},
       {
         'icon': Icons.settings,
         'title': 'Cài đặt hệ thống',
@@ -186,19 +178,23 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
     final faqs = [
       {
         'question': 'Làm sao để reset mật khẩu admin?',
-        'answer': 'Liên hệ IT Support hoặc sử dụng tính năng "Quên mật khẩu" trong trang đăng nhập.',
+        'answer':
+            'Liên hệ IT Support hoặc sử dụng tính năng "Quên mật khẩu" trong trang đăng nhập.',
       },
       {
         'question': 'Cách backup dữ liệu?',
-        'answer': 'Vào Settings > Backup & Restore > Nhấn "Backup Now". Hệ thống sẽ tự động tạo backup mỗi ngày.',
+        'answer':
+            'Vào Settings > Backup & Restore > Nhấn "Backup Now". Hệ thống sẽ tự động tạo backup mỗi ngày.',
       },
       {
         'question': 'Làm sao để xóa sản phẩm?',
-        'answer': 'Vào Products > Chọn sản phẩm > Nhấn biểu tượng xóa > Xác nhận. Lưu ý: Xóa sản phẩm sẽ không thể hoàn tác!',
+        'answer':
+            'Vào Products > Chọn sản phẩm > Nhấn biểu tượng xóa > Xác nhận. Lưu ý: Xóa sản phẩm sẽ không thể hoàn tác!',
       },
       {
         'question': 'Tôi không thấy một số đơn hàng?',
-        'answer': 'Kiểm tra bộ lọc trạng thái đơn hàng. Thử reset filter hoặc liên hệ IT Support.',
+        'answer':
+            'Kiểm tra bộ lọc trạng thái đơn hàng. Thử reset filter hoặc liên hệ IT Support.',
       },
     ];
 
@@ -274,7 +270,10 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
               children: [
                 Text(shortcut['desc'] ?? ''),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(4),
@@ -324,10 +323,7 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
           children: [
             Text(
               taskName,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -345,4 +341,3 @@ class _AdminHelpScreenState extends State<AdminHelpScreen> {
     );
   }
 }
-

@@ -15,8 +15,8 @@ class _UserHelpScreenState extends State<UserHelpScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Trợ Giúp'),
-        backgroundColor: Colors.blue.shade600,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+        foregroundColor: const Color.fromRGBO(0, 0, 0, 1),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),

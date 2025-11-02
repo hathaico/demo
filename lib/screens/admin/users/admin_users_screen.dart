@@ -87,16 +87,39 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       return Container(
                         margin: const EdgeInsets.only(right: 8),
                         child: FilterChip(
-                          label: Text(filter),
+                          label: Text(
+                            filter,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? const Color(0xFF0B57D0)
+                                  : Colors.grey.shade800,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                          ),
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
                               _selectedFilter = filter;
                             });
                           },
-                          backgroundColor: Colors.white,
-                          selectedColor: Colors.red.shade100,
-                          checkmarkColor: Colors.red.shade600,
+                          backgroundColor: isSelected
+                              ? Colors.white
+                              : const Color(0xFFF2F2F2),
+                          selectedColor: const Color(0xFFD6E8FF),
+                          showCheckmark: true,
+                          checkmarkColor: const Color(0xFF0B57D0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF0B57D0)
+                                  : Colors.black,
+                              width: 1.2,
+                            ),
+                          ),
+                          side: BorderSide.none,
                         ),
                       );
                     },
@@ -128,6 +151,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Widget _buildUserCard(User user) {
+    final displayName = user.fullName.trim().isNotEmpty
+        ? user.fullName.trim()
+        : (user.username.trim().isNotEmpty
+              ? user.username.trim()
+              : user.email.trim());
+    final String initial = displayName.isNotEmpty
+        ? displayName[0].toUpperCase()
+        : '?';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -146,7 +177,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         leading: CircleAvatar(
           backgroundColor: user.isActive ? Colors.green : Colors.red,
           child: Text(
-            user.fullName[0],
+            initial,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -154,7 +185,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           ),
         ),
         title: Text(
-          user.fullName,
+          displayName,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Column(
@@ -202,6 +233,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               case 'orders':
                 _viewUserOrders(user);
                 break;
+              case 'delete':
+                _deleteUser(user);
+                break;
             }
           },
           itemBuilder: (context) => [
@@ -241,6 +275,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   style: TextStyle(
                     color: user.isActive ? Colors.red : Colors.green,
                   ),
+                ),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'delete',
+              child: ListTile(
+                leading: Icon(Icons.delete, color: Colors.red),
+                title: Text(
+                  'Xóa người dùng',
+                  style: TextStyle(color: Colors.red),
                 ),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -350,13 +395,42 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
+                        final name = nameCtrl.text.trim();
+                        final email = emailCtrl.text.trim();
+                        final phone = phoneCtrl.text.trim();
+                        final usernameInput = usernameCtrl.text.trim();
+
+                        String? error;
+                        final emailRegex = RegExp(
+                          r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                        );
+                        if (name.isEmpty) {
+                          error = 'Vui lòng nhập họ và tên';
+                        } else if (email.isEmpty ||
+                            !emailRegex.hasMatch(email)) {
+                          error = 'Email không hợp lệ';
+                        } else if (phone.isEmpty || phone.length < 9) {
+                          error = 'Số điện thoại không hợp lệ';
+                        }
+
+                        if (error != null) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text(error)));
+                          return;
+                        }
+
+                        final resolvedUsername = usernameInput.isEmpty
+                            ? (email.contains('@')
+                                  ? email.split('@').first
+                                  : email)
+                            : usernameInput;
+
                         final data = {
-                          'fullName': nameCtrl.text.trim(),
-                          'email': emailCtrl.text.trim(),
-                          'phone': phoneCtrl.text.trim(),
-                          'username': usernameCtrl.text.trim().isEmpty
-                              ? (emailCtrl.text.split('@').first)
-                              : usernameCtrl.text.trim(),
+                          'fullName': name,
+                          'email': email,
+                          'phone': phone,
+                          'username': resolvedUsername,
                           'isActive': true,
                           'totalOrders': 0,
                           'totalSpent': 0,
@@ -430,102 +504,208 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     final emailCtrl = TextEditingController(text: user.email);
     final phoneCtrl = TextEditingController(text: user.phone);
     final usernameCtrl = TextEditingController(text: user.username);
+    final passwordCtrl = TextEditingController();
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Chỉnh sửa thông tin người dùng',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Họ và tên',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: phoneCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Số điện thoại',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: usernameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Tên đăng nhập',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
+      builder: (context) {
+        bool obscurePassword = true;
+        return StatefulBuilder(
+          builder: (context, modalSetState) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Hủy'),
+                  const Text(
+                    'Chỉnh sửa thông tin người dùng',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Họ và tên',
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final data = {
-                          'fullName': nameCtrl.text.trim(),
-                          'email': emailCtrl.text.trim(),
-                          'phone': phoneCtrl.text.trim(),
-                          'username': usernameCtrl.text.trim(),
-                        };
-                        Navigator.pop(context);
-                        try {
-                          await AdminDataService.updateUser(user.id, data);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Cập nhật thông tin thành công'),
-                            ),
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Lỗi cập nhật: $e')),
-                          );
-                        }
-                      },
-                      child: const Text('Cập nhật'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
                     ),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: phoneCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Số điện thoại',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: usernameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Tên đăng nhập',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F2FF),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE0D5FF)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Đổi mật khẩu',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.deepPurple.shade400,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: passwordCtrl,
+                          obscureText: obscurePassword,
+                          decoration: InputDecoration(
+                            hintText: 'Mật khẩu mới',
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE0D5FF),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.deepPurple.shade300,
+                                width: 1.5,
+                              ),
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                modalSetState(() {
+                                  obscurePassword = !obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Hủy'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final name = nameCtrl.text.trim();
+                            final email = emailCtrl.text.trim();
+                            final phone = phoneCtrl.text.trim();
+                            final username = usernameCtrl.text.trim();
+                            final newPassword = passwordCtrl.text.trim();
+
+                            String? error;
+                            final emailRegex = RegExp(
+                              r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                            );
+                            if (name.isEmpty) {
+                              error = 'Vui lòng nhập họ và tên';
+                            } else if (email.isEmpty ||
+                                !emailRegex.hasMatch(email)) {
+                              error = 'Email không hợp lệ';
+                            } else if (phone.isEmpty || phone.length < 9) {
+                              error = 'Số điện thoại không hợp lệ';
+                            } else if (newPassword.isNotEmpty &&
+                                newPassword.length < 6) {
+                              error = 'Mật khẩu phải có ít nhất 6 ký tự';
+                            }
+
+                            if (error != null) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text(error)));
+                              return;
+                            }
+
+                            final data = {
+                              'fullName': name,
+                              'email': email,
+                              'phone': phone,
+                              'username': username,
+                            };
+
+                            Navigator.pop(context);
+                            try {
+                              await AdminDataService.updateUser(
+                                user.id,
+                                data,
+                                newPassword: newPassword.isNotEmpty
+                                    ? newPassword
+                                    : null,
+                              );
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Cập nhật thông tin thành công',
+                                  ),
+                                ),
+                              );
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Lỗi cập nhật: $e')),
+                              );
+                            }
+                          },
+                          child: const Text('Cập nhật'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -584,7 +764,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   void _viewUserOrders(User user) {
     showDialog<void>(
       context: context,
-      builder: (context) => FutureBuilder<List>(
+      builder: (context) => FutureBuilder<List<Order>>(
         future: AdminDataService.getOrdersForUser(user.id),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -608,7 +788,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             );
           }
 
-          final orders = snapshot.data ?? [];
+          final orders = snapshot.data ?? <Order>[];
           return AlertDialog(
             title: Text('Đơn hàng của ${user.fullName} (${orders.length})'),
             content: SizedBox(
@@ -637,6 +817,49 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _deleteUser(User user) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa người dùng'),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa người dùng "${user.fullName.isNotEmpty ? user.fullName : user.email}"?\n'
+          'Thao tác này chỉ xóa hồ sơ trong Firestore và không xóa tài khoản Firebase Auth (nếu có).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await AdminDataService.deleteUser(user.id);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã xóa người dùng'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi xóa người dùng: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }

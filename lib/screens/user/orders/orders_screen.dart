@@ -46,6 +46,222 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return fmt.format(value);
   }
 
+  int _countItems(Order order) {
+    return order.items.fold<int>(0, (sum, item) => sum + item.quantity);
+  }
+
+  _StatusBadgeStyle _statusBadgeStyle(String status) {
+    final String normalized = status.toLowerCase();
+    if (normalized.contains('hủy')) {
+      return const _StatusBadgeStyle(
+        background: Color(0xFFFFEBEE),
+        border: Color(0xFFE57373),
+        foreground: Color(0xFFD32F2F),
+      );
+    }
+    if (normalized.contains('giao') || normalized.contains('hoàn')) {
+      return const _StatusBadgeStyle(
+        background: Color(0xFFE8F5E9),
+        border: Color(0xFF81C784),
+        foreground: Color(0xFF2E7D32),
+      );
+    }
+    if (normalized.contains('chờ') ||
+        normalized.contains('xử lý') ||
+        normalized.contains('xác nhận') ||
+        normalized.contains('đang')) {
+      return const _StatusBadgeStyle(
+        background: Color(0xFFFFF3E0),
+        border: Color(0xFFFFB74D),
+        foreground: Color(0xFFEF6C00),
+      );
+    }
+    return const _StatusBadgeStyle(
+      background: Color(0xFFE3F2FD),
+      border: Color(0xFF64B5F6),
+      foreground: Color(0xFF1976D2),
+    );
+  }
+
+  Widget _buildOrderCard(Order order) {
+    final _StatusBadgeStyle badgeStyle = _statusBadgeStyle(order.status);
+    final String createdAt = DateFormat(
+      'dd/MM/yyyy • HH:mm',
+    ).format(order.orderDate);
+    final String total = _formatCurrency(order.totalAmount);
+    final int productCount = _countItems(order);
+    final String itemLabel = productCount == 1
+        ? '1 sản phẩm'
+        : '$productCount sản phẩm';
+    final String paymentDisplay = order.paymentMethod.trim().isEmpty
+        ? 'Thanh toán khi nhận'
+        : order.paymentMethod.trim();
+
+    final ThemeData theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _openDetails(order),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Đơn #${order.id}',
+                          style:
+                              theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ) ??
+                              const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 16,
+                              color: Colors.grey.shade600,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              createdAt,
+                              style:
+                                  theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey.shade600,
+                                  ) ??
+                                  TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _InfoPill(
+                              icon: Icons.shopping_bag_outlined,
+                              label: itemLabel,
+                            ),
+                            _InfoPill(
+                              icon: Icons.payments_outlined,
+                              label: 'Thanh toán: $paymentDisplay',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeStyle.background,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: badgeStyle.border),
+                    ),
+                    child: Text(
+                      order.status,
+                      style: TextStyle(
+                        color: badgeStyle.foreground,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Divider(color: Colors.grey.shade200, height: 1),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tổng tiền',
+                          style:
+                              theme.textTheme.labelMedium?.copyWith(
+                                color: Colors.grey.shade600,
+                              ) ??
+                              TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          total,
+                          style:
+                              theme.textTheme.titleMedium?.copyWith(
+                                color: const Color(0xFF1F40C3),
+                                fontWeight: FontWeight.w700,
+                              ) ??
+                              const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1F40C3),
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openDetails(order),
+                    icon: const Icon(Icons.remove_red_eye_outlined, size: 18),
+                    label: const Text('Chi tiết'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF6C63FF),
+                      side: const BorderSide(color: Color(0xFF6C63FF)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openDetails(Order order) {
     // Open details and await a possible result (e.g. 'canceled') so we can
     // update the list immediately without waiting for Firestore sync.
@@ -177,6 +393,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: const Text('Đơn hàng của tôi'),
         backgroundColor: Colors.white,
@@ -195,119 +412,56 @@ class _OrdersScreenState extends State<OrdersScreen> {
               onRefresh: _loadOrders,
               child: _orders.isEmpty
                   ? ListView(
-                      children: const [
-                        SizedBox(height: 40),
-                        Center(child: Text('Bạn chưa có đơn hàng nào')),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 120,
+                      ),
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 84,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Bạn chưa có đơn hàng nào',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Khi bạn đặt mua sản phẩm, lịch sử đơn hàng sẽ xuất hiện tại đây.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 24),
+                        Center(
+                          child: ElevatedButton.icon(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            icon: const Icon(Icons.shopping_bag_outlined),
+                            label: const Text('Tiếp tục mua sắm'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1F40C3),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(26),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       itemCount: _orders.length,
                       itemBuilder: (context, index) {
-                        final order = _orders[index];
-                        // Improved card layout: status pill, formatted date/price and clear action button.
-                        return InkWell(
-                          onTap: () => _openDetails(order),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.withOpacity(0.06),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  'Đơn #${order.id}',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      order.status == 'Đã giao'
-                                                      ? Colors.green
-                                                      : (order.status ==
-                                                                'Đã hủy'
-                                                            ? Colors.red
-                                                            : Colors.orange),
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                ),
-                                                child: Text(
-                                                  order.status,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '${DateFormat('dd/MM/yyyy HH:mm').format(order.orderDate)}',
-                                            style: TextStyle(
-                                              color: Colors.grey.shade600,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            _formatCurrency(order.totalAmount),
-                                            style: TextStyle(
-                                              color: Colors.blue.shade700,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: () => _openDetails(order),
-                                      icon: const Icon(
-                                        Icons.visibility,
-                                        size: 16,
-                                      ),
-                                      label: const Text('Chi tiết'),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
+                        final Order order = _orders[index];
+                        return _buildOrderCard(order);
                       },
                     ),
             ),
@@ -319,6 +473,56 @@ class _OrdersScreenState extends State<OrdersScreen> {
     _orderCreatedSub?.cancel();
     _ordersStreamSub?.cancel();
     super.dispose();
+  }
+}
+
+class _StatusBadgeStyle {
+  const _StatusBadgeStyle({
+    required this.background,
+    required this.border,
+    required this.foreground,
+  });
+
+  final Color background;
+  final Color border;
+  final Color foreground;
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey.shade700),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

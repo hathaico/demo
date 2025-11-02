@@ -55,6 +55,12 @@ dependencies:
   cached_network_image: ^3.2.3
   # Image manipulation for compression and thumbnails
   image: ^4.0.17
+  # Authentication providers
+  google_sign_in: ^6.2.1
+  flutter_facebook_auth: ^6.0.5
+  # Local authentication and secure storage
+  local_auth: ^2.1.7
+  flutter_secure_storage: ^9.0.0
   # Local persistent cache
   hive: ^2.2.3
   hive_flutter: ^1.1.0

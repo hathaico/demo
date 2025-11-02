@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../services/settings_service.dart';
+import '../../../services/cart_service.dart';
+import '../../../services/wishlist_service.dart';
+import '../../../services/product_cache_service.dart';
+import '../help/user_help_screen.dart';
+import '../support/user_support_screen.dart';
 
 class UserSettingsScreen extends StatefulWidget {
   const UserSettingsScreen({super.key});
@@ -41,8 +46,8 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cài Đặt'),
-        backgroundColor: Colors.blue.shade600,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color.fromARGB(255, 249, 249, 249),
+        foregroundColor: const Color.fromARGB(255, 0, 0, 0),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -128,9 +133,9 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
             title: const Text('Trung tâm trợ giúp'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: Navigate to help center
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng sẽ được cập nhật')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UserHelpScreen()),
               );
             },
           ),
@@ -139,9 +144,11 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
             title: const Text('Gửi phản hồi'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: Open feedback
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng sẽ được cập nhật')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserSupportScreen(),
+                ),
               );
             },
           ),
@@ -160,7 +167,11 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
                 context: context,
                 applicationName: 'HatStyle',
                 applicationVersion: '1.0.0',
-                applicationIcon: Icon(Icons.style, size: 48, color: Colors.blue.shade600),
+                applicationIcon: Icon(
+                  Icons.style,
+                  size: 48,
+                  color: Colors.blue.shade600,
+                ),
               );
             },
           ),
@@ -171,7 +182,10 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           _buildSectionTitle('Khu vực nguy hiểm'),
           ListTile(
             leading: const Icon(Icons.delete_outline, color: Colors.red),
-            title: const Text('Xóa dữ liệu ứng dụng', style: TextStyle(color: Colors.red)),
+            title: const Text(
+              'Xóa dữ liệu ứng dụng',
+              style: TextStyle(color: Colors.red),
+            ),
             subtitle: const Text('Xóa tất cả dữ liệu local'),
             onTap: () => _showDeleteDataDialog(),
           ),
@@ -316,12 +330,34 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
             child: const Text('Hủy'),
           ),
           TextButton(
-            onPressed: () {
-              // TODO: Implement delete data
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng sẽ được cập nhật')),
-              );
+              try {
+                await Future.wait([
+                  CartService.clearCart(),
+                  WishlistService.clearWishlist(),
+                  SettingsService.resetUserSettings(),
+                  ProductCacheService.clearAll(),
+                ]);
+                if (!mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã xóa dữ liệu local và thiết lập ứng dụng'),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Không thể xóa dữ liệu: $e'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
             },
             child: const Text('Xóa', style: TextStyle(color: Colors.red)),
           ),
@@ -330,4 +366,3 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     );
   }
 }
-

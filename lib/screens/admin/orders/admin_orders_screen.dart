@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../models/models.dart';
 import '../../../services/admin_data_service.dart';
 import 'dart:async';
@@ -15,6 +16,8 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   StreamSubscription<List<Order>>? _ordersSub;
   String _selectedStatus = 'Tất cả';
   final TextEditingController _searchController = TextEditingController();
+  DateTime? _startDateFilter;
+  DateTime? _endDateFilter;
 
   final List<String> _statuses = ['Tất cả', 'Đang xử lý', 'Đã giao', 'Đã hủy'];
 
@@ -92,16 +95,39 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                       return Container(
                         margin: const EdgeInsets.only(right: 8),
                         child: FilterChip(
-                          label: Text(status),
+                          label: Text(
+                            status,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? const Color(0xFF0B57D0)
+                                  : Colors.grey.shade800,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                          ),
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
                               _selectedStatus = status;
                             });
                           },
-                          backgroundColor: Colors.white,
-                          selectedColor: Colors.red.shade100,
-                          checkmarkColor: Colors.red.shade600,
+                          backgroundColor: isSelected
+                              ? Colors.white
+                              : const Color(0xFFF2F2F2),
+                          selectedColor: const Color(0xFFD6E8FF),
+                          showCheckmark: true,
+                          checkmarkColor: const Color(0xFF0B57D0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF0B57D0)
+                                  : Colors.black,
+                              width: 1.2,
+                            ),
+                          ),
+                          side: BorderSide.none,
                         ),
                       );
                     },
@@ -308,115 +334,236 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   }
 
   List<Order> _getFilteredOrders() {
+    final searchQuery = _searchController.text.toLowerCase().trim();
     return _orders.where((order) {
-      final searchQuery = _searchController.text.toLowerCase();
-      final matchesSearch =
-          order.id.toLowerCase().contains(searchQuery) ||
-          order.userId.toLowerCase().contains(searchQuery);
+      final matchesSearch = searchQuery.isEmpty
+          ? true
+          : order.id.toLowerCase().contains(searchQuery) ||
+                order.userId.toLowerCase().contains(searchQuery) ||
+                order.shippingAddress.toLowerCase().contains(searchQuery);
 
       final matchesStatus =
           _selectedStatus == 'Tất cả' || order.status == _selectedStatus;
 
-      return matchesSearch && matchesStatus;
+      final matchesDate = _isWithinSelectedRange(order.orderDate);
+
+      return matchesSearch && matchesStatus && matchesDate;
     }).toList();
   }
 
+  bool _isWithinSelectedRange(DateTime date) {
+    if (_startDateFilter == null && _endDateFilter == null) {
+      return true;
+    }
+
+    final DateTime normalized = DateTime(date.year, date.month, date.day);
+
+    if (_startDateFilter != null) {
+      final DateTime start = DateTime(
+        _startDateFilter!.year,
+        _startDateFilter!.month,
+        _startDateFilter!.day,
+      );
+      if (normalized.isBefore(start)) {
+        return false;
+      }
+    }
+
+    if (_endDateFilter != null) {
+      final DateTime end = DateTime(
+        _endDateFilter!.year,
+        _endDateFilter!.month,
+        _endDateFilter!.day,
+      );
+      if (normalized.isAfter(end)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) {
+      return 'Chưa chọn';
+    }
+    return DateFormat('dd/MM/yyyy').format(date);
+  }
+
   void _showFilterDialog() {
+    final TextEditingController startController = TextEditingController(
+      text: _startDateFilter != null ? _formatDate(_startDateFilter) : '',
+    );
+    final TextEditingController endController = TextEditingController(
+      text: _endDateFilter != null ? _formatDate(_endDateFilter) : '',
+    );
+
+    DateTime? tempStart = _startDateFilter;
+    DateTime? tempEnd = _endDateFilter;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bộ lọc đơn hàng'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Lọc theo ngày'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Từ ngày',
-                      border: OutlineInputBorder(),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<void> pickStart() async {
+              final DateTime initial = tempStart ?? DateTime.now();
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: initial.isAfter(DateTime.now())
+                    ? DateTime.now()
+                    : initial,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setModalState(() {
+                  tempStart = picked;
+                  if (tempEnd != null && tempEnd!.isBefore(picked)) {
+                    tempEnd = picked;
+                    endController.text = _formatDate(tempEnd);
+                  }
+                  startController.text = _formatDate(tempStart);
+                });
+              }
+            }
+
+            Future<void> pickEnd() async {
+              final DateTime initial = tempEnd ?? tempStart ?? DateTime.now();
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: initial.isAfter(DateTime.now())
+                    ? DateTime.now()
+                    : initial,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setModalState(() {
+                  tempEnd = picked;
+                  if (tempStart != null && tempStart!.isAfter(picked)) {
+                    tempStart = picked;
+                    startController.text = _formatDate(tempStart);
+                  }
+                  endController.text = _formatDate(tempEnd);
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Bộ lọc đơn hàng'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Lọc theo ngày'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: pickStart,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Từ ngày',
+                                border: OutlineInputBorder(),
+                              ),
+                              child: Text(
+                                startController.text.isEmpty
+                                    ? 'Chưa chọn'
+                                    : startController.text,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: InkWell(
+                            onTap: pickEnd,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Đến ngày',
+                                border: OutlineInputBorder(),
+                              ),
+                              child: Text(
+                                endController.text.isEmpty
+                                    ? 'Chưa chọn'
+                                    : endController.text,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    readOnly: true,
-                    onTap: () async {
-                      await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      // TODO: Handle date selection
-                    },
-                  ),
+                    const SizedBox(height: 16),
+                    const Text('Lọc theo giá trị đơn hàng'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: const [
+                        Expanded(
+                          child: TextField(
+                            decoration: InputDecoration(
+                              labelText: 'Từ',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            decoration: InputDecoration(
+                              labelText: 'Đến',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Đến ngày',
-                      border: OutlineInputBorder(),
-                    ),
-                    readOnly: true,
-                    onTap: () async {
-                      await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      // TODO: Handle date selection
-                    },
-                  ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Hủy'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _startDateFilter = null;
+                      _endDateFilter = null;
+                    });
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Đã đặt lại bộ lọc ngày')),
+                    );
+                  },
+                  child: const Text('Đặt lại'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _startDateFilter = tempStart;
+                      _endDateFilter = tempEnd;
+                    });
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Đã áp dụng bộ lọc ngày')),
+                    );
+                  },
+                  child: const Text('Áp dụng'),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            const Text('Lọc theo giá trị đơn hàng'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Từ',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Đến',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Áp dụng bộ lọc')));
-            },
-            child: const Text('Áp dụng'),
-          ),
-        ],
-      ),
-    );
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      startController.dispose();
+      endController.dispose();
+    });
   }
 
   void _updateOrderStatus(Order order) {

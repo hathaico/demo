@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'login_screen.dart';
+import '../user_main_screen.dart';
 import '../../../services/user_service.dart';
 import '../../../services/firebase_auth_service.dart';
 
@@ -24,6 +25,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscureConfirmPassword = true;
   bool _agreeTerms = false;
   bool _isLoading = false;
+  bool _isSocialLoading = false;
+  String? _activeSocialProvider;
 
   @override
   void dispose() {
@@ -348,18 +351,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          // TODO: Implement Google registration
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Tính năng đăng ký Google sẽ được cập nhật',
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: _isSocialLoading
+                            ? null
+                            : _registerWithGoogle,
                         icon: const Icon(Icons.g_mobiledata, color: Colors.red),
-                        label: const Text('Google'),
+                        label:
+                            _isSocialLoading &&
+                                _activeSocialProvider == 'google'
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Google'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
@@ -368,18 +374,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          // TODO: Implement Facebook registration
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Tính năng đăng ký Facebook sẽ được cập nhật',
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: _isSocialLoading
+                            ? null
+                            : _registerWithFacebook,
                         icon: const Icon(Icons.facebook, color: Colors.blue),
-                        label: const Text('Facebook'),
+                        label:
+                            _isSocialLoading &&
+                                _activeSocialProvider == 'facebook'
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Facebook'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
@@ -527,5 +536,102 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _registerWithGoogle() async {
+    setState(() {
+      _isSocialLoading = true;
+      _activeSocialProvider = 'google';
+    });
+
+    final result = await FirebaseAuthService.signInWithGoogle();
+
+    if (!mounted) {
+      setState(() {
+        _isSocialLoading = false;
+        _activeSocialProvider = null;
+      });
+      return;
+    }
+
+    if (result['success'] == true) {
+      await _completeSocialRegistration(result, providerName: 'Google');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['error'] as String? ?? 'Không thể đăng ký bằng Google',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+
+    setState(() {
+      _isSocialLoading = false;
+      _activeSocialProvider = null;
+    });
+  }
+
+  Future<void> _registerWithFacebook() async {
+    setState(() {
+      _isSocialLoading = true;
+      _activeSocialProvider = 'facebook';
+    });
+
+    final result = await FirebaseAuthService.signInWithFacebook();
+
+    if (!mounted) {
+      setState(() {
+        _isSocialLoading = false;
+        _activeSocialProvider = null;
+      });
+      return;
+    }
+
+    if (result['success'] == true) {
+      await _completeSocialRegistration(result, providerName: 'Facebook');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['error'] as String? ?? 'Không thể đăng ký bằng Facebook',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+
+    setState(() {
+      _isSocialLoading = false;
+      _activeSocialProvider = null;
+    });
+  }
+
+  Future<void> _completeSocialRegistration(
+    Map<String, dynamic> result, {
+    required String providerName,
+  }) async {
+    final Map<String, dynamic> userData = Map<String, dynamic>.from(
+      result['userData'] as Map,
+    );
+    final bool isNewUser = result['isNewUser'] == true;
+    final String fullName = userData['fullName'] ?? 'Người dùng';
+
+    final String message = isNewUser
+        ? 'Đăng ký $providerName thành công! Chào mừng $fullName'
+        : 'Đăng nhập $providerName thành công! Chào mừng trở lại $fullName';
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const UserMainScreen()),
+      (route) => false,
+    );
   }
 }

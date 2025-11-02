@@ -178,3 +178,151 @@ class ProductStats {
     required this.conversionRate,
   });
 }
+
+// Notification categories reflect core commerce operations.
+enum NotificationCategory { order, promotion, stock, support, system }
+
+class StoreNotification {
+  final String id;
+  final String title;
+  final String body;
+  final NotificationCategory category;
+  final DateTime createdAt;
+  final bool isRead;
+  final String? orderId;
+  final String? productId;
+  final String? imageUrl;
+  final bool isGlobal;
+  final bool isSample;
+
+  StoreNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.category,
+    required this.createdAt,
+    this.isRead = false,
+    this.orderId,
+    this.productId,
+    this.imageUrl,
+    this.isGlobal = false,
+    this.isSample = false,
+  });
+
+  StoreNotification copyWith({
+    String? id,
+    String? title,
+    String? body,
+    NotificationCategory? category,
+    DateTime? createdAt,
+    bool? isRead,
+    String? orderId,
+    String? productId,
+    String? imageUrl,
+    bool? isGlobal,
+    bool? isSample,
+  }) {
+    return StoreNotification(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      category: category ?? this.category,
+      createdAt: createdAt ?? this.createdAt,
+      isRead: isRead ?? this.isRead,
+      orderId: orderId ?? this.orderId,
+      productId: productId ?? this.productId,
+      imageUrl: imageUrl ?? this.imageUrl,
+      isGlobal: isGlobal ?? this.isGlobal,
+      isSample: isSample ?? this.isSample,
+    );
+  }
+
+  factory StoreNotification.fromMap(String id, Map<String, dynamic> data) {
+    return StoreNotification(
+      id: id,
+      title: (data['title'] ?? 'Thông báo').toString(),
+      body: (data['body'] ?? data['message'] ?? '').toString(),
+      category: _categoryFromString(
+        (data['category'] ?? data['type'] ?? 'system').toString(),
+      ),
+      createdAt: _parseDate(data['createdAt']),
+      isRead: (data['isRead'] ?? data['read'] ?? false) == true,
+      orderId: data['orderId']?.toString(),
+      productId: data['productId']?.toString(),
+      imageUrl:
+          data['productImage']?.toString() ?? data['imageUrl']?.toString(),
+      isGlobal: (data['isGlobal'] ?? false) == true,
+      isSample: (data['isSample'] ?? false) == true,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'body': body,
+      'category': categoryToString(category),
+      'createdAt': createdAt.toIso8601String(),
+      'isRead': isRead,
+      if (orderId != null) 'orderId': orderId,
+      if (productId != null) 'productId': productId,
+      if (imageUrl != null && imageUrl!.isNotEmpty) 'productImage': imageUrl,
+      'isGlobal': isGlobal,
+      'isSample': isSample,
+    };
+  }
+
+  static DateTime _parseDate(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is DateTime) return value;
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+    try {
+      // Handle Firestore Timestamp without directly importing package.
+      final dynamic milliseconds = value.millisecondsSinceEpoch;
+      if (milliseconds is int) {
+        return DateTime.fromMillisecondsSinceEpoch(milliseconds);
+      }
+    } catch (_) {}
+    return DateTime.now();
+  }
+
+  static NotificationCategory _categoryFromString(String value) {
+    switch (value.toLowerCase()) {
+      case 'order':
+      case 'order_update':
+      case 'order-status':
+        return NotificationCategory.order;
+      case 'promotion':
+      case 'marketing':
+        return NotificationCategory.promotion;
+      case 'stock':
+      case 'inventory':
+      case 'restock':
+        return NotificationCategory.stock;
+      case 'support':
+      case 'service':
+        return NotificationCategory.support;
+      default:
+        return NotificationCategory.system;
+    }
+  }
+
+  static String categoryToString(NotificationCategory category) {
+    switch (category) {
+      case NotificationCategory.order:
+        return 'order';
+      case NotificationCategory.promotion:
+        return 'promotion';
+      case NotificationCategory.stock:
+        return 'stock';
+      case NotificationCategory.support:
+        return 'support';
+      case NotificationCategory.system:
+        return 'system';
+    }
+  }
+}

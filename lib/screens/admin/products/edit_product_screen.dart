@@ -86,8 +86,8 @@ class _EditProductScreenState extends State<EditProductScreen> {
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text('Chỉnh sửa sản phẩm'),
-        backgroundColor: Colors.red.shade600,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFFFFF),
+        foregroundColor: const Color.fromRGBO(0, 0, 0, 1),
         elevation: 0,
       ),
       body: _isLoading

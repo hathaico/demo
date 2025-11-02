@@ -19,15 +19,23 @@ class AdminMainScreen extends StatefulWidget {
 
 class _AdminMainScreenState extends State<AdminMainScreen> {
   int _selectedIndex = 0;
+  late final List<Widget> _screens;
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const AdminProductsScreen(),
-    const AdminOrdersScreen(),
-    const AdminUsersScreen(),
-    const AdminReportsScreen(),
-    const AdminSettingsScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      DashboardScreen(
+        onViewAllOrders: () => _selectTab(2),
+        onViewAllProducts: () => _selectTab(1),
+      ),
+      const AdminProductsScreen(),
+      const AdminOrdersScreen(),
+      const AdminUsersScreen(),
+      const AdminReportsScreen(),
+      const AdminSettingsScreen(),
+    ];
+  }
 
   final List<String> _titles = [
     'Bảng Điều Khiển',
@@ -46,20 +54,15 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         backgroundColor: const Color.fromARGB(255, 255, 255, 255),
         foregroundColor: const Color.fromARGB(255, 0, 0, 0),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tính năng thông báo sẽ được cập nhật'),
-                ),
-              );
-            },
-          ),
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'logout') {
-                _logout();
+              switch (value) {
+                case 'profile':
+                  _showProfileSheet();
+                  break;
+                case 'logout':
+                  _logout();
+                  break;
               }
             },
             itemBuilder: (context) => [
@@ -176,9 +179,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               child: AdminNavBar(
                 currentIndex: _selectedIndex,
                 onTap: (index) {
-                  setState(() {
-                    _selectedIndex = index;
-                  });
+                  _selectTab(index);
                 },
               ),
             )
@@ -208,12 +209,17 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       selected: _selectedIndex == index,
       selectedTileColor: Colors.red.shade50,
       onTap: () {
-        setState(() {
-          _selectedIndex = index;
-        });
+        _selectTab(index);
         Navigator.pop(context);
       },
     );
+  }
+
+  void _selectTab(int index) {
+    if (_selectedIndex == index) return;
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   void _logout() {
@@ -238,6 +244,121 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             child: const Text('Đăng xuất'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showProfileSheet() {
+    const String displayName = 'Quản trị HatStyle';
+    const String email = 'admin@hatstyle.com';
+    const String role = 'Quản trị viên cấp cao';
+    const String phone = '+84 906 000 888';
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          top: 24,
+          left: 24,
+          right: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.red.shade100,
+                  child: const Icon(
+                    Icons.admin_panel_settings,
+                    color: Colors.red,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        displayName,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        role,
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Divider(height: 1),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.email_outlined),
+              title: const Text('Email'),
+              subtitle: const Text(email),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.phone_outlined),
+              title: const Text('Số điện thoại'),
+              subtitle: const Text(phone),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.security_outlined),
+              title: const Text('Quyền hạn'),
+              subtitle: const Text(
+                'Toàn quyền quản trị hệ thống, sản phẩm, đơn hàng và người dùng.',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.settings_outlined),
+                    label: const Text('Cài đặt tài khoản'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _selectTab(5);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.logout, size: 18),
+                    label: const Text('Đăng xuất'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _logout();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

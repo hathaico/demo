@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
-import 'package:flutter/services.dart';
 import '../../../models/models.dart';
 import '../../../services/firebase_product_service.dart';
-import '../../../services/wishlist_service.dart';
 import '../../../services/product_cache_service.dart';
 import '../../../widgets/safe_network_image.dart';
 import '../../../widgets/shimmer_placeholder.dart';
@@ -21,6 +19,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'Tất cả';
   String _selectedSort = 'Mặc định';
+  final Set<String> _selectedBrands = <String>{};
+  final Set<String> _selectedColors = <String>{};
+  double? _minPriceFilter;
+  double? _maxPriceFilter;
 
   final List<String> _categories = [
     'Tất cả',
@@ -38,6 +40,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
     'Giá cao đến thấp',
     'Đánh giá cao nhất',
     'Mới nhất',
+  ];
+
+  final List<String> _brandOptions = const [
+    'HatStyle',
+    'Urban Style',
+    'Classic',
+    'Sporty',
+    'Cozy',
+    'Retro',
+  ];
+
+  final List<String> _colorOptions = const [
+    'Đen',
+    'Trắng',
+    'Xanh Navy',
+    'Xám',
+    'Nâu',
+    'Camo',
   ];
 
   @override
@@ -379,6 +399,41 @@ class _ProductsScreenState extends State<ProductsScreen> {
       }).toList();
     }
 
+    if (_minPriceFilter != null) {
+      filtered = filtered
+          .where((product) => product.price >= _minPriceFilter!)
+          .toList();
+    }
+
+    if (_maxPriceFilter != null) {
+      filtered = filtered
+          .where((product) => product.price <= _maxPriceFilter!)
+          .toList();
+    }
+
+    if (_selectedBrands.isNotEmpty) {
+      final Set<String> normalizedBrands = _selectedBrands
+          .map((brand) => brand.toLowerCase())
+          .toSet();
+      filtered = filtered
+          .where(
+            (product) => normalizedBrands.contains(product.brand.toLowerCase()),
+          )
+          .toList();
+    }
+
+    if (_selectedColors.isNotEmpty) {
+      final Set<String> normalizedSelectedColors = _selectedColors
+          .map((c) => c.toLowerCase())
+          .toSet();
+      filtered = filtered.where((product) {
+        final Iterable<String> productColors = product.colors.isEmpty
+            ? const Iterable<String>.empty()
+            : product.colors.map((c) => c.toLowerCase());
+        return productColors.any(normalizedSelectedColors.contains);
+      }).toList();
+    }
+
     // Sort products
     switch (_selectedSort) {
       case 'Giá thấp đến cao':
@@ -403,6 +458,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   Widget _buildProductCard(HatProduct product) {
+    final bool isOutOfStock = product.stock <= 0;
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -452,6 +508,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         placeholderText: product.name,
                       ),
                     ),
+                    if (isOutOfStock)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.55),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(12),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Hết hàng',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
                     if (product.isHot)
                       Positioned(
                         top: 8,
@@ -475,63 +549,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ),
                         ),
                       ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: FutureBuilder<bool>(
-                        future: WishlistService.isInWishlist(product.id),
-                        builder: (context, snapshot) {
-                          bool isInWishlist = snapshot.data ?? false;
-                          return IconButton(
-                            icon: Icon(
-                              isInWishlist
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: isInWishlist
-                                  ? Colors.red
-                                  : Colors.grey.shade600,
-                            ),
-                            onPressed: () async {
-                              bool wasAdded =
-                                  await WishlistService.toggleWishlist(product);
-                              HapticFeedback.lightImpact();
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    wasAdded
-                                        ? 'Đã thêm "${product.name}" vào danh sách yêu thích'
-                                        : 'Đã xóa "${product.name}" khỏi danh sách yêu thích',
-                                  ),
-                                  backgroundColor: wasAdded
-                                      ? Colors.green
-                                      : Colors.orange,
-                                  action: SnackBarAction(
-                                    label: wasAdded ? 'Xem' : 'Hoàn tác',
-                                    textColor: Colors.white,
-                                    onPressed: () {
-                                      if (wasAdded) {
-                                        // Navigate to wishlist
-                                        Navigator.pushNamed(
-                                          context,
-                                          '/wishlist',
-                                        );
-                                      } else {
-                                        // Undo remove
-                                        WishlistService.addToWishlist(product);
-                                      }
-                                    },
-                                  ),
-                                ),
-                              );
-
-                              // Trigger rebuild to update icon
-                              setState(() {});
-                            },
-                          );
-                        },
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -572,7 +589,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade600,
+                              color: isOutOfStock
+                                  ? Colors.grey.shade500
+                                  : Colors.blue.shade600,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -604,128 +623,197 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   void _showFilterBottomSheet() {
+    final TextEditingController minController = TextEditingController(
+      text: _minPriceFilter != null ? _minPriceFilter!.toStringAsFixed(0) : '',
+    );
+    final TextEditingController maxController = TextEditingController(
+      text: _maxPriceFilter != null ? _maxPriceFilter!.toStringAsFixed(0) : '',
+    );
+
+    final Set<String> tempBrands = Set<String>.from(_selectedBrands);
+    final Set<String> tempColors = Set<String>.from(_selectedColors);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Bộ lọc',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
-            // Price range
-            const Text(
-              'Khoảng giá',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Từ',
-                      hintText: '0',
-                    ),
-                    keyboardType: TextInputType.number,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Bộ lọc',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Đến',
-                      hintText: '1000000',
-                    ),
-                    keyboardType: TextInputType.number,
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Khoảng giá',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Brand filter
-            const Text(
-              'Thương hiệu',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children:
-                  [
-                        'HatStyle',
-                        'Urban Style',
-                        'Classic',
-                        'Sporty',
-                        'Cozy',
-                        'Retro',
-                      ]
-                      .map(
-                        (brand) => FilterChip(
-                          label: Text(brand),
-                          onSelected: (selected) {
-                            // TODO: Implement brand filtering
-                          },
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: minController,
+                          decoration: const InputDecoration(
+                            labelText: 'Từ',
+                            hintText: '0',
+                          ),
+                          keyboardType: TextInputType.number,
                         ),
-                      )
-                      .toList(),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Color filter
-            const Text(
-              'Màu sắc',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: ['Đen', 'Trắng', 'Xanh Navy', 'Xám', 'Nâu', 'Camo']
-                  .map(
-                    (color) => FilterChip(
-                      label: Text(color),
-                      onSelected: (selected) {
-                        // TODO: Implement color filtering
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-
-            const SizedBox(height: 24),
-
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Đặt lại'),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          controller: maxController,
+                          decoration: const InputDecoration(
+                            labelText: 'Đến',
+                            hintText: '1000000',
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      // TODO: Apply filters
-                    },
-                    child: const Text('Áp dụng'),
+
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Thương hiệu',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: _brandOptions.map((brand) {
+                      final bool isSelected = tempBrands.contains(brand);
+                      return FilterChip(
+                        label: Text(brand),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setModalState(() {
+                            if (selected) {
+                              tempBrands.add(brand);
+                            } else {
+                              tempBrands.remove(brand);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Màu sắc',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: _colorOptions.map((color) {
+                      final bool isSelected = tempColors.contains(color);
+                      return FilterChip(
+                        label: Text(color),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setModalState(() {
+                            if (selected) {
+                              tempColors.add(color);
+                            } else {
+                              tempColors.remove(color);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedBrands.clear();
+                              _selectedColors.clear();
+                              _minPriceFilter = null;
+                              _maxPriceFilter = null;
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Đặt lại'),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedBrands
+                                ..clear()
+                                ..addAll(tempBrands);
+                              _selectedColors
+                                ..clear()
+                                ..addAll(tempColors);
+                              _minPriceFilter = _parsePrice(minController.text);
+                              _maxPriceFilter = _parsePrice(maxController.text);
+                              if (_minPriceFilter != null &&
+                                  _maxPriceFilter != null &&
+                                  _minPriceFilter! > _maxPriceFilter!) {
+                                final double temp = _minPriceFilter!;
+                                _minPriceFilter = _maxPriceFilter;
+                                _maxPriceFilter = temp;
+                              }
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Áp dụng'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      minController.dispose();
+      maxController.dispose();
+    });
+  }
+
+  double? _parsePrice(String value) {
+    final String trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final String sanitized = trimmed
+        .replaceAll(RegExp(r'[đ\s]'), '')
+        .replaceAll('.', '')
+        .replaceAll(',', '');
+
+    if (sanitized.isEmpty) {
+      return null;
+    }
+
+    return double.tryParse(sanitized);
   }
 }

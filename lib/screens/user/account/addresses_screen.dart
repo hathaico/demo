@@ -368,18 +368,59 @@ class _AddressesScreenState extends State<AddressesScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _addresses.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Bạn chưa có địa chỉ giao hàng nào.'),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _addAddress,
-                    child: const Text('Thêm địa chỉ'),
-                  ),
-                ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.location_on_outlined,
+                        size: 48,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Bạn chưa có địa chỉ giao hàng nào',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Thêm địa chỉ để nhận hàng nhanh chóng và chính xác hơn.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _addAddress,
+                        icon: const Icon(Icons.add_location_alt_outlined),
+                        label: const Text('Thêm địa chỉ mới'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           : ListView.builder(

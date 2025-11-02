@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../models/models.dart';
 import '../../../services/firebase_product_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../services/notification_service.dart';
 import '../../../services/wishlist_service.dart';
 import '../../../widgets/safe_network_image.dart';
 import '../../../widgets/shimmer_placeholder.dart';
 import '../products/product_detail_screen.dart';
+import '../products/products_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../user_main_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -116,17 +121,79 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ],
                               ),
                             ),
-                            IconButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Tính năng thông báo sẽ được cập nhật',
+                            StreamBuilder<List<StoreNotification>>(
+                              stream: NotificationService.watchNotifications(),
+                              builder: (context, snapshot) {
+                                final notifications =
+                                    snapshot.data ??
+                                    const <StoreNotification>[];
+                                final unreadCount = notifications
+                                    .where((n) => !n.isRead && !n.isSample)
+                                    .length;
+
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    IconButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const NotificationsScreen(),
+                                          ),
+                                        ).then((_) async {
+                                          final prefs =
+                                              await SharedPreferences.getInstance();
+                                          final ids = notifications
+                                              .where(
+                                                (n) =>
+                                                    !n.isSample &&
+                                                    n.id.isNotEmpty,
+                                              )
+                                              .map((n) => n.id)
+                                              .toSet()
+                                              .toList();
+                                          await prefs.setStringList(
+                                            NotificationService.readCacheKey,
+                                            ids,
+                                          );
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.notifications_outlined,
+                                      ),
                                     ),
-                                  ),
+                                    if (unreadCount > 0)
+                                      Positioned(
+                                        right: 6,
+                                        top: 6,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.redAccent,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            unreadCount > 9
+                                                ? '9+'
+                                                : '$unreadCount',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 );
                               },
-                              icon: const Icon(Icons.notifications_outlined),
                             ),
                           ],
                         ),
@@ -150,10 +217,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.filter_list),
                         onPressed: () {
-                          // TODO: Implement filter
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Tính năng lọc sẽ được cập nhật'),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProductsScreen(),
                             ),
                           );
                         },

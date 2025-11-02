@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
+import 'dart:math' as math;
 
 class ImageBase64Service {
   // Chuyển đổi File thành base64 string
@@ -50,13 +52,30 @@ class ImageBase64Service {
     try {
       // Đọc file gốc
       Uint8List originalBytes = await imageFile.readAsBytes();
-      
-      // TODO: Implement image compression
-      // Có thể sử dụng package image để compress
-      // Hiện tại chỉ return base64 của file gốc
-      
-      String base64String = base64Encode(originalBytes);
-      return base64String;
+
+      final img.Image? decoded = img.decodeImage(originalBytes);
+      if (decoded == null) {
+        return base64Encode(originalBytes);
+      }
+
+      final img.Image resized = _resizeToFit(decoded, maxWidth, maxHeight);
+
+      final String extension = imageFile.path.split('.').last.toLowerCase();
+      final int jpgQuality = quality.clamp(10, 100);
+      Uint8List compressedBytes;
+
+      if (extension == 'png' || extension == 'webp') {
+        final int pngLevel = ((100 - jpgQuality) / 10).round().clamp(0, 9);
+        compressedBytes = Uint8List.fromList(
+          img.encodePng(resized, level: pngLevel),
+        );
+      } else {
+        compressedBytes = Uint8List.fromList(
+          img.encodeJpg(resized, quality: jpgQuality),
+        );
+      }
+
+      return base64Encode(compressedBytes);
     } catch (e) {
       throw Exception('Lỗi nén và chuyển đổi hình ảnh: $e');
     }
@@ -98,10 +117,17 @@ class ImageBase64Service {
     int maxHeight = 300,
   }) async {
     try {
-      // TODO: Implement thumbnail creation
-      // Có thể sử dụng package image để tạo thumbnail
-      // Hiện tại return base64 gốc
-      return base64String;
+      final Uint8List bytes = base64Decode(base64String);
+      final img.Image? decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        return base64String;
+      }
+
+      final img.Image resized = _resizeToFit(decoded, maxWidth, maxHeight);
+      final Uint8List encoded = Uint8List.fromList(
+        img.encodeJpg(resized, quality: 80),
+      );
+      return base64Encode(encoded);
     } catch (e) {
       throw Exception('Lỗi tạo thumbnail: $e');
     }
@@ -177,10 +203,7 @@ class ImageBase64Service {
         'message': 'Chuyển đổi hình ảnh thành base64 thành công',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Lỗi chuyển đổi hình ảnh: $e',
-      };
+      return {'success': false, 'error': 'Lỗi chuyển đổi hình ảnh: $e'};
     }
   }
 
@@ -221,15 +244,36 @@ class ImageBase64Service {
         'message': 'Chuyển đổi avatar thành base64 thành công',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Lỗi chuyển đổi avatar: $e',
-      };
+      return {'success': false, 'error': 'Lỗi chuyển đổi avatar: $e'};
     }
   }
+
+  static img.Image _resizeToFit(img.Image source, int maxWidth, int maxHeight) {
+    final int targetMaxWidth = maxWidth <= 0 ? source.width : maxWidth;
+    final int targetMaxHeight = maxHeight <= 0 ? source.height : maxHeight;
+
+    if (source.width <= targetMaxWidth && source.height <= targetMaxHeight) {
+      return source;
+    }
+
+    final double widthRatio = targetMaxWidth / source.width;
+    final double heightRatio = targetMaxHeight / source.height;
+    final double scale = math.min(widthRatio, heightRatio);
+
+    final int newWidth = (source.width * scale).round().clamp(
+      1,
+      targetMaxWidth,
+    );
+    final int newHeight = (source.height * scale).round().clamp(
+      1,
+      targetMaxHeight,
+    );
+
+    return img.copyResize(
+      source,
+      width: newWidth,
+      height: newHeight,
+      interpolation: img.Interpolation.cubic,
+    );
+  }
 }
-
-
-
-
-

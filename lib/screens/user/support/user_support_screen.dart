@@ -36,8 +36,8 @@ class _UserSupportScreenState extends State<UserSupportScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hỗ Trợ'),
-        backgroundColor: Colors.blue.shade600,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFFFFF),
+        foregroundColor: const Color.fromARGB(255, 0, 0, 0),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

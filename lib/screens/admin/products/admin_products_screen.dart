@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/models.dart';
 import '../../../services/firebase_product_service.dart';
-import '../../../services/firebase_storage_service.dart';
 import '../../../widgets/safe_network_image.dart';
 import 'add_product_screen.dart';
 import 'edit_product_screen.dart';
@@ -18,6 +17,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'Tất cả';
   bool _isLoading = true;
+  int _currentPage = 0;
+  final int _itemsPerPage = 8;
 
   final List<String> _categories = [
     'Tất cả',
@@ -37,28 +38,20 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
 
   Future<void> _loadProducts() async {
     try {
-      // Khởi tạo dữ liệu mẫu nếu cần
-      // Lấy tất cả sản phẩm từ Firebase
-      List<HatProduct> products = await FirebaseProductService.getAllProducts();
-      
+      final products = await FirebaseProductService.getAllProducts();
       setState(() {
         _products = products;
         _isLoading = false;
+        _currentPage = 0;
       });
     } catch (e) {
-      print('Error loading products: $e');
-      // Fallback về dữ liệu mẫu nếu Firebase lỗi
+      debugPrint('Error loading products: $e');
       setState(() {
         _products = [];
         _isLoading = false;
+        _currentPage = 0;
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   @override
@@ -78,33 +71,22 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                   decoration: InputDecoration(
                     hintText: 'Tìm kiếm sản phẩm...',
                     prefixIcon: const Icon(Icons.search),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.security),
-                          onPressed: _checkStorageRules,
-                          tooltip: 'Check Storage Rules',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.cloud_upload),
-                          onPressed: _testFirebaseStorage,
-                          tooltip: 'Test Firebase Storage',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
-                        ),
-                      ],
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _currentPage = 0;
+                        });
+                      },
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onChanged: (value) => setState(() {}),
+                  onChanged: (value) => setState(() {
+                    _currentPage = 0;
+                  }),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -115,20 +97,44 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                     itemBuilder: (context, index) {
                       final category = _categories[index];
                       final isSelected = _selectedCategory == category;
-                      
+
                       return Container(
                         margin: const EdgeInsets.only(right: 8),
                         child: FilterChip(
-                          label: Text(category),
+                          label: Text(
+                            category,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? const Color(0xFF0B57D0)
+                                  : Colors.grey.shade800,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                          ),
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
                               _selectedCategory = category;
+                              _currentPage = 0;
                             });
                           },
-                          backgroundColor: Colors.white,
-                          selectedColor: Colors.red.shade100,
-                          checkmarkColor: const Color.fromARGB(255, 85, 132, 197),
+                          backgroundColor: isSelected
+                              ? Colors.white
+                              : const Color(0xFFF2F2F2),
+                          selectedColor: const Color(0xFFD6E8FF),
+                          showCheckmark: true,
+                          checkmarkColor: const Color(0xFF0B57D0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF0B57D0)
+                                  : Colors.black,
+                              width: 1.2,
+                            ),
+                          ),
+                          side: BorderSide.none,
                         ),
                       );
                     },
@@ -137,57 +143,87 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
               ],
             ),
           ),
-          
+
           // Products list
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _products.where((product) {
-                    final searchQuery = _searchController.text.toLowerCase();
-                    final matchesSearch = product.name.toLowerCase().contains(searchQuery) ||
-                        product.brand.toLowerCase().contains(searchQuery) ||
-                        product.category.toLowerCase().contains(searchQuery);
-                    
-                    final matchesCategory = _selectedCategory == 'Tất cả' ||
-                        product.category == _selectedCategory;
-                    
-                    return matchesSearch && matchesCategory;
-                  }).toList().isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.inventory_2_outlined,
-                              size: 64,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Chưa có sản phẩm nào',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey.shade600,
+                : Builder(
+                    builder: (context) {
+                      final filteredProducts = _getFilteredProducts();
+                      if (filteredProducts.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inventory_2_outlined,
+                                size: 64,
+                                color: Colors.grey.shade400,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Nhấn nút + để thêm sản phẩm đầu tiên',
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
+                              const SizedBox(height: 16),
+                              Text(
+                                'Chưa có sản phẩm nào',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey.shade600,
+                                ),
                               ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Nhấn nút + để thêm sản phẩm đầu tiên',
+                                style: TextStyle(color: Colors.grey.shade500),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      final totalPages =
+                          (filteredProducts.length / _itemsPerPage).ceil();
+                      int safePage = _currentPage;
+                      if (safePage >= totalPages) {
+                        safePage = totalPages - 1;
+                      }
+                      if (safePage < 0) {
+                        safePage = 0;
+                      }
+                      if (safePage != _currentPage) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          setState(() {
+                            _currentPage = safePage;
+                          });
+                        });
+                      }
+
+                      final pagedProducts = filteredProducts
+                          .skip(safePage * _itemsPerPage)
+                          .take(_itemsPerPage)
+                          .toList();
+
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: pagedProducts.length,
+                              itemBuilder: (context, index) {
+                                final product = pagedProducts[index];
+                                return _buildProductCard(product);
+                              },
                             ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _getFilteredProducts().length,
-                        itemBuilder: (context, index) {
-                          final product = _getFilteredProducts()[index];
-                          return _buildProductCard(product);
-                        },
-                      ),
+                          ),
+                          if (totalPages > 1)
+                            _buildPaginationControls(
+                              currentPage: safePage,
+                              totalPages: totalPages,
+                              totalItems: filteredProducts.length,
+                            ),
+                        ],
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -197,84 +233,6 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
-  }
-
-  void _checkStorageRules() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đang kiểm tra Storage rules...'),
-        backgroundColor: Colors.blue,
-      ),
-    );
-
-    try {
-      Map<String, dynamic> result = await FirebaseStorageService.checkStorageRules();
-      
-      if (result['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Rules OK: ${result['message']}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Rules check failed: ${result['error']}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi check rules: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    }
-  }
-
-  void _testFirebaseStorage() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đang test Firebase Storage...'),
-        backgroundColor: Colors.blue,
-      ),
-    );
-
-    try {
-      Map<String, dynamic> result = await FirebaseStorageService.testUpload();
-      
-      if (result['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Test thành công! URL: ${result['downloadUrl']}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Test thất bại: ${result['error']}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi test: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    }
   }
 
   Widget _buildProductCard(HatProduct product) {
@@ -310,9 +268,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
         ),
         title: Text(
           product.name,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -333,17 +289,17 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                 ),
                 const SizedBox(width: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: product.stock < 10 ? Colors.red : Colors.green,
+                    color: product.stock <= 0 ? Colors.red : Colors.green,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     'Còn ${product.stock}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 10),
                   ),
                 ),
               ],
@@ -398,24 +354,113 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
   List<HatProduct> _getFilteredProducts() {
     return _products.where((product) {
       final searchQuery = _searchController.text.toLowerCase();
-      final matchesSearch = product.name.toLowerCase().contains(searchQuery) ||
+      final matchesSearch =
+          product.name.toLowerCase().contains(searchQuery) ||
           product.brand.toLowerCase().contains(searchQuery);
-      
-      final matchesCategory = _selectedCategory == 'Tất cả' ||
+
+      final matchesCategory =
+          _selectedCategory == 'Tất cả' ||
           product.category == _selectedCategory;
-      
+
       return matchesSearch && matchesCategory;
     }).toList();
+  }
+
+  Widget _buildPaginationControls({
+    required int currentPage,
+    required int totalPages,
+    required int totalItems,
+  }) {
+    final int startItem = currentPage * _itemsPerPage + 1;
+    final int endItem = (startItem + _itemsPerPage - 1) > totalItems
+        ? totalItems
+        : startItem + _itemsPerPage - 1;
+    final bool canGoBack = currentPage > 0;
+    final bool canGoForward = currentPage < totalPages - 1;
+
+    final Color baseBg = const Color(0xFFD6E8FF);
+    final Color pressedBg = const Color(0xFFBFD9FF);
+    final Color textColor = const Color(0xFF0B57D0);
+
+    ButtonStyle pagingStyle =
+        ElevatedButton.styleFrom(
+          backgroundColor: baseBg,
+          foregroundColor: textColor,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ).copyWith(
+          backgroundColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.disabled)) {
+              return baseBg.withOpacity(0.45);
+            }
+            if (states.contains(MaterialState.pressed)) {
+              return pressedBg;
+            }
+            return baseBg;
+          }),
+          foregroundColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.disabled)) {
+              return textColor.withOpacity(0.4);
+            }
+            return textColor;
+          }),
+          iconColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.disabled)) {
+              return textColor.withOpacity(0.4);
+            }
+            return textColor;
+          }),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Hiển thị $startItem-$endItem trong $totalItems sản phẩm',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: canGoBack
+                    ? () => setState(() {
+                        _currentPage = currentPage - 1;
+                      })
+                    : null,
+                icon: const Icon(Icons.chevron_left, size: 18),
+                label: const Text('Trước'),
+                style: pagingStyle,
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: canGoForward
+                    ? () => setState(() {
+                        _currentPage = currentPage + 1;
+                      })
+                    : null,
+                label: const Text('Sau'),
+                icon: const Icon(Icons.chevron_right, size: 18),
+                style: pagingStyle,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   void _addProduct() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const AddProductScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const AddProductScreen()),
     );
-    
+
     if (result == true) {
       // Reload products after adding
       _loadProducts();
@@ -429,7 +474,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
         builder: (context) => EditProductScreen(product: product),
       ),
     );
-    
+
     if (result == true) {
       // Reload products after editing
       _loadProducts();
@@ -450,10 +495,11 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              
+
               try {
-                Map<String, dynamic> result = await FirebaseProductService.deleteProduct(product.id);
-                
+                Map<String, dynamic> result =
+                    await FirebaseProductService.deleteProduct(product.id);
+
                 if (result['success'] == true) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -508,8 +554,10 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
     );
 
     try {
-      Map<String, dynamic> result = await FirebaseProductService.addProduct(duplicatedProduct);
-      
+      Map<String, dynamic> result = await FirebaseProductService.addProduct(
+        duplicatedProduct,
+      );
+
       if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -529,10 +577,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
       );
     }
   }

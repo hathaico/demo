@@ -573,8 +573,9 @@ class FirebaseUserService {
   ) async {
     try {
       String? userId = FirebaseAuthService.currentUser?.uid;
-      if (userId == null)
+      if (userId == null) {
         return {'success': false, 'error': 'Người dùng chưa đăng nhập'};
+      }
 
       await _firestore.collection(_collection).doc(userId).update({
         'addresses': addresses.map((a) => a.toMap()).toList(),

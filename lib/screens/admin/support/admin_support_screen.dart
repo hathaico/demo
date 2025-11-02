@@ -13,8 +13,8 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hỗ Trợ'),
-        backgroundColor: Colors.grey.shade800,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color.fromRGBO(255, 255, 255, 1),
+        foregroundColor: const Color.fromRGBO(0, 0, 0, 1),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -52,7 +52,7 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
 
   Widget _buildSystemStatusCard() {
     return Card(
-      color: Colors.blue.shade50,
+      color: const Color.fromARGB(255, 255, 255, 255),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

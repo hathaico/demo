@@ -1,9 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class FirebaseAuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
   // Get current user
   static User? get currentUser => _auth.currentUser;
@@ -156,7 +159,11 @@ class FirebaseAuthService {
 
   // Đăng xuất
   static Future<void> signOut() async {
-    await _auth.signOut();
+    await Future.wait([
+      _auth.signOut(),
+      _googleSignIn.signOut().catchError((_) => null),
+      FacebookAuth.instance.logOut().catchError((_) => null),
+    ]);
   }
 
   // Kiểm tra email đã tồn tại chưa
@@ -319,5 +326,162 @@ class FirebaseAuthService {
       throw Exception('User not authenticated');
     }
     return _firestore.collection('users').doc(currentUser!.uid).snapshots();
+  }
+
+  static Future<Map<String, dynamic>> signInWithGoogle() async {
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        return {
+          'success': false,
+          'error': 'Người dùng đã hủy đăng nhập Google',
+        };
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+      final User? user = userCredential.user;
+
+      if (user == null) {
+        return {
+          'success': false,
+          'error': 'Không thể lấy thông tin người dùng Google',
+        };
+      }
+
+      final Map<String, dynamic> userData = await _ensureUserDocument(
+        user,
+        fullName: user.displayName ?? googleUser.displayName,
+        email: user.email ?? googleUser.email,
+        providerId: userCredential.credential?.providerId,
+      );
+
+      return {
+        'success': true,
+        'user': user,
+        'userData': userData,
+        'isNewUser': userCredential.additionalUserInfo?.isNewUser ?? false,
+      };
+    } on FirebaseAuthException catch (e) {
+      return {
+        'success': false,
+        'error': e.message ?? 'Không thể đăng nhập bằng Google',
+      };
+    } catch (e) {
+      return {'success': false, 'error': 'Không thể đăng nhập bằng Google: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> signInWithFacebook() async {
+    try {
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      if (result.status != LoginStatus.success || result.accessToken == null) {
+        return {
+          'success': false,
+          'error': result.message ?? 'Người dùng đã hủy đăng nhập Facebook',
+        };
+      }
+
+      final OAuthCredential credential = FacebookAuthProvider.credential(
+        result.accessToken!.token,
+      );
+
+      final UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+      final User? user = userCredential.user;
+
+      if (user == null) {
+        return {
+          'success': false,
+          'error': 'Không thể lấy thông tin người dùng Facebook',
+        };
+      }
+
+      final Map<String, dynamic> facebookData = await FacebookAuth.instance
+          .getUserData(fields: 'name,email');
+
+      final Map<String, dynamic> userData = await _ensureUserDocument(
+        user,
+        fullName: facebookData['name'] as String? ?? user.displayName,
+        email:
+            (facebookData['email'] as String?) ??
+            user.email ??
+            '${user.uid}@facebook.com',
+        providerId: userCredential.credential?.providerId,
+      );
+
+      return {
+        'success': true,
+        'user': user,
+        'userData': userData,
+        'isNewUser': userCredential.additionalUserInfo?.isNewUser ?? false,
+      };
+    } on FirebaseAuthException catch (e) {
+      return {
+        'success': false,
+        'error': e.message ?? 'Không thể đăng nhập bằng Facebook',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Không thể đăng nhập bằng Facebook: $e',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> _ensureUserDocument(
+    User user, {
+    String? fullName,
+    String? email,
+    String? phone,
+    String? providerId,
+  }) async {
+    final DocumentReference<Map<String, dynamic>> docRef = _firestore
+        .collection('users')
+        .doc(user.uid);
+
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await docRef.get();
+    if (snapshot.exists && snapshot.data() != null) {
+      return Map<String, dynamic>.from(snapshot.data()!);
+    }
+
+    final Map<String, dynamic> data = {
+      'email': (email ?? user.email ?? '').trim(),
+      'fullName': (fullName ?? user.displayName ?? 'Người dùng').trim(),
+      'phone': (phone ?? user.phoneNumber ?? '').trim(),
+      'username': user.email ?? user.uid,
+      'role': 'user',
+      'isActive': true,
+      'totalOrders': 0,
+      'totalSpent': 0.0,
+      'joinDate': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'authProvider':
+          providerId ??
+          (user.providerData.isNotEmpty
+              ? user.providerData.first.providerId
+              : 'unknown'),
+    };
+
+    await docRef.set(data);
+    final DocumentSnapshot<Map<String, dynamic>> refreshed = await docRef.get();
+    if (refreshed.data() == null) {
+      return data;
+    }
+    return Map<String, dynamic>.from(refreshed.data()!);
   }
 }

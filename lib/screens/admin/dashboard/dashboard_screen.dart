@@ -1,29 +1,171 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../../models/models.dart';
+import '../../../services/admin_data_service.dart';
+import '../../../services/analytics_service.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({
+    super.key,
+    this.onViewAllOrders,
+    this.onViewAllProducts,
+  });
+
+  final VoidCallback? onViewAllOrders;
+  final VoidCallback? onViewAllProducts;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final List<SalesReport> _salesData = [];
-  final List<ProductStats> _productStats = [];
-  final List<Order> _recentOrders = [];
-  final List<User> _users = [];
+  List<SalesReport> _salesData = const [];
+  List<ProductStats> _productStats = const [];
+  List<Order> _recentOrders = const [];
+  List<User> _users = const [];
+  List<Order> _allOrders = const [];
+  bool _isLoading = true;
+  String _selectedRange = '7 ngày';
+  StreamSubscription<List<Order>>? _ordersSub;
+  StreamSubscription<List<User>>? _usersSub;
+  bool _ordersLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDataStreams();
+  }
+
+  @override
+  void dispose() {
+    _ordersSub?.cancel();
+    _usersSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initializeDataStreams() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    await _ordersSub?.cancel();
+    await _usersSub?.cancel();
+    _ordersSub = null;
+    _usersSub = null;
+    _ordersLoaded = false;
+
+    try {
+      await AdminDataService.ensureAdminInitialized();
+
+      _ordersSub = AdminDataService.ordersStream().listen(
+        (orders) {
+          _allOrders = orders;
+          _ordersLoaded = true;
+          _recalculateAnalytics();
+        },
+        onError: (Object error, StackTrace stackTrace) =>
+            _handleDataError(error, stackTrace),
+      );
+
+      _usersSub = AdminDataService.usersStream().listen(
+        (users) {
+          _users = users;
+          _recalculateAnalytics();
+        },
+        onError: (Object error, StackTrace stackTrace) =>
+            _handleDataError(error, stackTrace),
+      );
+    } catch (e, stackTrace) {
+      _handleDataError(e, stackTrace);
+    }
+  }
+
+  void _handleDataError(Object error, StackTrace stackTrace) {
+    debugPrint('Dashboard data stream failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _allOrders = const [];
+      _recentOrders = const [];
+      _salesData = const [];
+      _productStats = const [];
+      _isLoading = false;
+      _ordersLoaded = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Không thể tải dữ liệu dashboard. Vui lòng thử lại.'),
+      ),
+    );
+  }
+
+  void _recalculateAnalytics() {
+    if (!mounted) {
+      return;
+    }
+
+    final int rangeDays = _rangeToDays(_selectedRange);
+    final DateTime now = DateTime.now();
+    final DateTime start = now.subtract(
+      Duration(days: math.max(rangeDays - 1, 0)),
+    );
+
+    final List<Order> orders = _allOrders;
+
+    final salesReports = AnalyticsService.buildSalesReports(
+      orders: orders,
+      users: _users,
+      days: rangeDays,
+    );
+
+    final productStats = AnalyticsService.buildProductStats(
+      orders: orders,
+      start: start,
+      end: now,
+    );
+
+    setState(() {
+      _salesData = salesReports;
+      _productStats = productStats;
+      _recentOrders = orders.take(50).toList();
+      _isLoading = !_ordersLoaded;
+    });
+  }
+
+  int _rangeToDays(String range) {
+    switch (range) {
+      case '30 ngày':
+        return 30;
+      case '90 ngày':
+        return 90;
+      case '1 năm':
+        return 365;
+      case '7 ngày':
+      default:
+        return 7;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final todayRevenue = _salesData.isNotEmpty ? _salesData.last.revenue : 0.0;
     final todayOrders = _salesData.isNotEmpty ? _salesData.last.orderCount : 0;
     final totalUsers = _users.length;
-    final pendingOrders = _recentOrders
+    final pendingOrders = _allOrders
         .where((o) => o.status == 'Đang xử lý')
         .length;
 
-return Scaffold(
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -149,17 +291,17 @@ return Scaffold(
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Doanh thu 7 ngày qua',
-                        style: TextStyle(
+                      Text(
+                        'Doanh thu $_selectedRange qua',
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       DropdownButton<String>(
-                        value: '7 ngày',
+                        value: _selectedRange,
                         underline: const SizedBox(),
-                        items: ['7 ngày', '30 ngày', '90 ngày'].map((
+                        items: ['7 ngày', '30 ngày', '90 ngày', '1 năm'].map((
                           String value,
                         ) {
                           return DropdownMenuItem<String>(
@@ -168,7 +310,11 @@ return Scaffold(
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
-                          // TODO: Update chart data
+                          if (newValue == null) return;
+                          setState(() {
+                            _selectedRange = newValue;
+                          });
+                          _recalculateAnalytics();
                         },
                       ),
                     ],
@@ -178,7 +324,11 @@ return Scaffold(
                     height: 200,
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 2),
-                      child: _buildSimpleChart(),
+                      child: !_hasRevenueData(_salesData)
+                          ? _buildEmptyChartMessage(
+                              'Chưa có dữ liệu doanh thu trong kỳ đã chọn',
+                            )
+                          : _buildSalesChart(_salesData),
                     ),
                   ),
                 ],
@@ -209,15 +359,21 @@ return Scaffold(
               ),
               child: Column(
                 children: [
-                  ..._recentOrders
-                      .take(5)
-                      .map((order) => _buildOrderItem(order)),
+                  if (_recentOrders.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Chưa có đơn hàng trong kỳ đã chọn'),
+                    )
+                  else
+                    ..._recentOrders
+                        .take(5)
+                        .map((order) => _buildOrderItem(order)),
                   if (_recentOrders.length > 5)
                     ListTile(
                       title: const Text('Xem tất cả đơn hàng'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // TODO: Navigate to orders screen
+                        widget.onViewAllOrders?.call();
                       },
                     ),
                 ],
@@ -248,15 +404,21 @@ return Scaffold(
               ),
               child: Column(
                 children: [
-                  ..._productStats
-                      .take(5)
-                      .map((stat) => _buildProductItem(stat)),
+                  if (_productStats.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Chưa có dữ liệu sản phẩm trong kỳ'),
+                    )
+                  else
+                    ..._productStats
+                        .take(5)
+                        .map((stat) => _buildProductItem(stat)),
                   if (_productStats.length > 5)
                     ListTile(
                       title: const Text('Xem tất cả sản phẩm'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // TODO: Navigate to products screen
+                        widget.onViewAllProducts?.call();
                       },
                     ),
                 ],
@@ -329,67 +491,147 @@ return Scaffold(
     );
   }
 
-  Widget _buildSimpleChart() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: 125,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(7, (index) {
-                final height = 40 + (index * 8) + (index % 3 == 0 ? 12 : 0);
-                return Expanded(
+  Widget _buildSalesChart(List<SalesReport> data) {
+    final List<double> revenueValues = data
+        .map(
+          (report) => report.revenue.isFinite && report.revenue > 0
+              ? report.revenue
+              : 0.0,
+        )
+        .toList();
+
+    if (revenueValues.every((value) => value <= 0)) {
+      return _buildEmptyChartMessage(
+        'Chưa có dữ liệu doanh thu trong kỳ đã chọn',
+      );
+    }
+
+    final double maxRevenue = revenueValues.fold(
+      0,
+      (prev, revenue) => revenue > prev ? revenue : prev,
+    );
+    final double safeMax = maxRevenue <= 0 ? 1 : maxRevenue;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double textScale = MediaQuery.textScaleFactorOf(context);
+        const double bottomSpacing = 8;
+        const double baseBottomLabelHeight = 34;
+
+        final double bottomLabelHeight =
+            baseBottomLabelHeight * textScale.clamp(1.0, 1.6);
+        final double reservedSpace = bottomSpacing + bottomLabelHeight;
+
+        final double barAreaHeight = (constraints.maxHeight - reservedSpace)
+            .clamp(36.0, constraints.maxHeight);
+        final double computedBarWidth =
+            constraints.maxWidth / (data.isEmpty ? 1 : data.length * 1.4);
+        final double barWidth = math.min(36, computedBarWidth);
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (int i = 0; i < data.length; i++)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Container(
-                        width: 20,
-                        height: height.toDouble(),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade400,
-                          borderRadius: BorderRadius.circular(4),
+                      SizedBox(
+                        height: barAreaHeight,
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOut,
+                            height:
+                                barAreaHeight *
+                                (revenueValues[i] / safeMax).clamp(0.0, 1.0),
+                            width: barWidth,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.blue.shade400,
+                                  Colors.lightBlueAccent,
+                                ],
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'T${index + 1}',
-                        style: const TextStyle(fontSize: 12),
+                      const SizedBox(height: bottomSpacing),
+                      SizedBox(
+                        height: bottomLabelHeight,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${data[i].date.day}/${data[i].date.month}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${data[i].orderCount} đơn',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${DateTime.now().subtract(const Duration(days: 6)).day}/${DateTime.now().subtract(const Duration(days: 6)).month}',
-                style: const TextStyle(fontSize: 12),
+                ),
               ),
-              Text(
-                '${DateTime.now().day}/${DateTime.now().month}',
-                style: const TextStyle(fontSize: 10),
-              ),
-            ],
-          ),
-        ],
+          ],
+        );
+      },
+    );
+  }
+
+  bool _hasRevenueData(List<SalesReport> reports) {
+    if (reports.isEmpty) return false;
+    for (final report in reports) {
+      final double revenue = report.revenue.isFinite ? report.revenue : 0.0;
+      if (revenue.round() > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Widget _buildEmptyChartMessage(String message) {
+    return Center(
+      child: Text(
+        message,
+        style: TextStyle(
+          color: Colors.grey.shade600,
+          fontSize: 14,
+          fontStyle: FontStyle.italic,
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }
 
   Widget _buildOrderItem(Order order) {
+    final Color statusColor = _statusColor(order.status);
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: order.status == 'Đã giao'
-            ? Colors.green
-            : Colors.orange,
+        backgroundColor: statusColor,
         child: Text(
           order.id.substring(order.id.length - 2),
           style: const TextStyle(
@@ -406,7 +648,7 @@ return Scaffold(
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: order.status == 'Đã giao' ? Colors.green : Colors.orange,
+          color: statusColor,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
@@ -415,6 +657,21 @@ return Scaffold(
         ),
       ),
     );
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Đang xử lý':
+        return Colors.orange;
+      case 'Chờ xác nhận':
+        return Colors.grey;
+      case 'Đã giao':
+        return Colors.green;
+      case 'Đã hủy':
+        return Colors.red;
+      default:
+        return Colors.blueGrey;
+    }
   }
 
   Widget _buildProductItem(ProductStats stat) {
@@ -450,4 +707,3 @@ return Scaffold(
     );
   }
 }
-

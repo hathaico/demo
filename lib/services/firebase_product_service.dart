@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart';
+import 'notification_service.dart';
 import 'product_cache_service.dart';
 
 class FirebaseProductService {
@@ -48,7 +49,21 @@ class FirebaseProductService {
     HatProduct product,
   ) async {
     try {
-      await _firestore.collection(_collection).doc(productId).update({
+      final docRef = _firestore.collection(_collection).doc(productId);
+      final snapshot = await docRef.get();
+      if (!snapshot.exists) {
+        return {
+          'success': false,
+          'error': 'Sản phẩm với mã $productId không tồn tại',
+        };
+      }
+
+      final Map<String, dynamic> previousData = Map<String, dynamic>.from(
+        snapshot.data() as Map,
+      );
+      final int previousStock = _normalizeStock(previousData['stock']);
+
+      await docRef.update({
         'name': product.name,
         // update lowercase helper
         'name_lower': product.name.toLowerCase(),
@@ -67,6 +82,8 @@ class FirebaseProductService {
         'isHot': product.isHot,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      final bool restocked = previousStock <= 0 && product.stock > 0;
 
       // Invalidate cache for this product
       _productCache.remove(productId);
@@ -93,9 +110,120 @@ class FirebaseProductService {
         ]);
       } catch (_) {}
 
+      if (restocked) {
+        try {
+          await _notifyProductRestocked(
+            productId: productId,
+            productName: product.name,
+            productImage: product.imageUrl,
+          );
+        } catch (_) {}
+      }
+
       return {'success': true, 'message': 'Cập nhật sản phẩm thành công'};
     } catch (e) {
       return {'success': false, 'error': 'Lỗi cập nhật sản phẩm: $e'};
+    }
+  }
+
+  static int _normalizeStock(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+
+  static Future<void> _notifyProductRestocked({
+    required String productId,
+    required String productName,
+    required String productImage,
+  }) async {
+    final Set<String> userIds = <String>{};
+    final CollectionReference<Map<String, dynamic>> ordersRef = _firestore
+        .collection('orders');
+    const List<String> statusesToCheck = ['Đã hủy', 'Chờ xác nhận'];
+    final Timestamp cutoff = Timestamp.fromDate(
+      DateTime.now().subtract(const Duration(days: 60)),
+    );
+
+    for (final status in statusesToCheck) {
+      Query<Map<String, dynamic>> query = ordersRef.where(
+        'status',
+        isEqualTo: status,
+      );
+      QuerySnapshot<Map<String, dynamic>> snapshot;
+      try {
+        snapshot = await query
+            .where('orderDate', isGreaterThanOrEqualTo: cutoff)
+            .limit(200)
+            .get();
+      } on FirebaseException catch (e) {
+        final String message = e.message ?? '';
+        if (e.code == 'failed-precondition' ||
+            message.contains('index') ||
+            message.contains('requires')) {
+          snapshot = await query.limit(200).get();
+        } else {
+          rethrow;
+        }
+      }
+
+      for (final doc in snapshot.docs) {
+        final Map<String, dynamic> data = Map<String, dynamic>.from(doc.data());
+        final List<dynamic> rawItems = data['items'] as List<dynamic>? ?? [];
+        final bool containsProduct = rawItems.any((raw) {
+          if (raw is Map<String, dynamic>) {
+            return raw['productId'] == productId;
+          }
+          try {
+            final map = Map<String, dynamic>.from(raw as Map);
+            return map['productId'] == productId;
+          } catch (_) {
+            return false;
+          }
+        });
+
+        if (!containsProduct) {
+          continue;
+        }
+
+        final String userId = (data['userId'] ?? data['userUID'] ?? '')
+            .toString()
+            .trim();
+        if (userId.isNotEmpty) {
+          userIds.add(userId);
+        }
+      }
+    }
+
+    if (userIds.isEmpty) {
+      return;
+    }
+
+    final String displayName = productName.trim().isEmpty
+        ? 'Sản phẩm bạn quan tâm'
+        : productName;
+    final String title = '$displayName đã có hàng trở lại';
+    final String body =
+        'Sản phẩm bạn quan tâm đã được bổ sung kho. Bạn có thể đặt lại đơn hàng ngay bây giờ.';
+
+    for (final userId in userIds) {
+      try {
+        await NotificationService.createUserNotification(
+          userId: userId,
+          title: title,
+          body: body,
+          category: NotificationCategory.stock,
+          extra: {
+            'productId': productId,
+            'productName': productName,
+            if (productImage.isNotEmpty) 'productImage': productImage,
+            'type': 'restock',
+          },
+        );
+      } catch (_) {}
     }
   }
 
