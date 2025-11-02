@@ -336,16 +336,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   );
                 },
               ),
-              IconButton(
-                icon: const Icon(Icons.share, color: Colors.black),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tính năng chia sẻ sẽ được cập nhật'),
-                    ),
-                  );
-                },
-              ),
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: SafeNetworkImage(

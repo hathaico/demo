@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:local_auth/local_auth.dart';
 import '../user_main_screen.dart';
 import 'register_screen.dart';
 import '../../../services/user_service.dart';
@@ -22,9 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _rememberMe = false;
   bool _isLoading = false;
-  bool _isSocialLoading = false;
-  String? _activeSocialProvider;
-  bool _isBiometricLoading = false;
 
   @override
   void initState() {
@@ -184,10 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                     TextButton(
-                      onPressed:
-                          _isLoading || _isSocialLoading || _isBiometricLoading
-                          ? null
-                          : _showForgotPasswordDialog,
+                      onPressed: _isLoading ? null : _showForgotPasswordDialog,
                       child: Text(
                         'Quên mật khẩu?',
                         style: TextStyle(color: Colors.blue.shade600),
@@ -235,18 +228,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Đăng nhập bằng sinh trắc học
                 OutlinedButton.icon(
-                  onPressed:
-                      _isBiometricLoading || _isLoading || _isSocialLoading
+                  onPressed: _isLoading
                       ? null
-                      : _loginWithBiometrics,
+                      : () => _showComingSoon('Đăng nhập bằng vân tay'),
                   icon: const Icon(Icons.fingerprint),
-                  label: _isBiometricLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Đăng nhập bằng vân tay'),
+                  label: const Text('Đăng nhập bằng vân tay'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -259,24 +245,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed:
-                            (_isSocialLoading ||
-                                _isLoading ||
-                                _isBiometricLoading)
+                        onPressed: _isLoading
                             ? null
-                            : _loginWithGoogle,
+                            : () => _showComingSoon('Đăng nhập Google'),
                         icon: const Icon(Icons.g_mobiledata, color: Colors.red),
-                        label:
-                            _isSocialLoading &&
-                                _activeSocialProvider == 'google'
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Google'),
+                        label: const Text('Google'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
@@ -285,24 +258,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed:
-                            (_isSocialLoading ||
-                                _isLoading ||
-                                _isBiometricLoading)
+                        onPressed: _isLoading
                             ? null
-                            : _loginWithFacebook,
+                            : () => _showComingSoon('Đăng nhập Facebook'),
                         icon: const Icon(Icons.facebook, color: Colors.blue),
-                        label:
-                            _isSocialLoading &&
-                                _activeSocialProvider == 'facebook'
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Facebook'),
+                        label: const Text('Facebook'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
@@ -541,147 +501,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _loginWithGoogle() async {
-    setState(() {
-      _isSocialLoading = true;
-      _activeSocialProvider = 'google';
-    });
-
-    final result = await FirebaseAuthService.signInWithGoogle();
-
-    if (!mounted) {
-      setState(() {
-        _isSocialLoading = false;
-        _activeSocialProvider = null;
-      });
-      return;
-    }
-
-    if (result['success'] == true) {
-      await _handleFirebaseLoginSuccess(
-        result,
-        successMessage: 'Đăng nhập Google thành công! Chào mừng ',
-        shouldRemember: false,
-        clearStoredCredentials: false,
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result['error'] as String? ?? 'Không thể đăng nhập bằng Google',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-
-    setState(() {
-      _isSocialLoading = false;
-      _activeSocialProvider = null;
-    });
-  }
-
-  Future<void> _loginWithFacebook() async {
-    setState(() {
-      _isSocialLoading = true;
-      _activeSocialProvider = 'facebook';
-    });
-
-    final result = await FirebaseAuthService.signInWithFacebook();
-
-    if (!mounted) {
-      setState(() {
-        _isSocialLoading = false;
-        _activeSocialProvider = null;
-      });
-      return;
-    }
-
-    if (result['success'] == true) {
-      await _handleFirebaseLoginSuccess(
-        result,
-        successMessage: 'Đăng nhập Facebook thành công! Chào mừng ',
-        shouldRemember: false,
-        clearStoredCredentials: false,
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result['error'] as String? ?? 'Không thể đăng nhập bằng Facebook',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-
-    setState(() {
-      _isSocialLoading = false;
-      _activeSocialProvider = null;
-    });
-  }
-
-  Future<void> _loginWithBiometrics() async {
-    final stored = await CredentialStorageService.loadCredentials();
-    if (stored == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập và chọn "Nhớ đăng nhập" trước'),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isBiometricLoading = true;
-    });
-
-    final LocalAuthentication localAuth = LocalAuthentication();
-
-    try {
-      final bool canCheck =
-          await localAuth.canCheckBiometrics ||
-          await localAuth.isDeviceSupported();
-      if (!canCheck) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Thiết bị không hỗ trợ sinh trắc học')),
-        );
-        return;
-      }
-
-      final bool authenticated = await localAuth.authenticate(
-        localizedReason: 'Xác thực để đăng nhập nhanh',
-        options: const AuthenticationOptions(biometricOnly: true),
-      );
-
-      if (!authenticated) {
-        return;
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _rememberMe = true;
-        _emailController.text = stored['identifier'] ?? '';
-        _passwordController.text = stored['password'] ?? '';
-      });
-
-      await _login();
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể sử dụng sinh trắc học: ${e.message}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isBiometricLoading = false;
-        });
-      }
-    }
+  Future<void> _showComingSoon(String featureName) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$featureName sẽ được cập nhật trong thời gian tới.'),
+      ),
+    );
   }
 }
