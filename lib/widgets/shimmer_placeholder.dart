@@ -12,8 +12,8 @@ class ShimmerProductCard extends StatelessWidget {
     final highlight = Colors.grey.shade100;
 
     return Shimmer.fromColors(
-      // shorten the shimmer cycle so the animation appears faster
-      period: const Duration(milliseconds: 600),
+      // speed up shimmer cycle to 300ms per request
+      period: const Duration(milliseconds: 300),
       baseColor: base,
       highlightColor: highlight,
       child: Container(

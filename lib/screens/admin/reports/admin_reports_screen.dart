@@ -610,6 +610,68 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
     }
   }
 
+  Widget _buildRevenueSection() {
+    final int requiredDays = _rangeToDays(_selectedPeriod);
+    final bool hasFullHistory = _hasCompleteHistoryForRange(requiredDays);
+    final bool hasRevenue = _salesData.any(
+      (report) => report.revenue.isFinite && report.revenue > 0,
+    );
+
+    if (!hasFullHistory && requiredDays > 7) {
+      return SizedBox(
+        height: 200,
+        child: _buildEmptyChartMessage(
+          'Chưa có đủ dữ liệu $_selectedPeriod để hiển thị biểu đồ',
+        ),
+      );
+    }
+
+    if (!hasRevenue) {
+      return SizedBox(
+        height: 200,
+        child: _buildEmptyChartMessage(
+          'Chưa có dữ liệu doanh thu trong kỳ đã chọn',
+        ),
+      );
+    }
+
+    return SizedBox(height: 240, child: _buildRevenueChart(_salesData));
+  }
+
+  bool _hasCompleteHistoryForRange(int days) {
+    if (days <= 7) {
+      return true;
+    }
+
+    final DateTime? earliest = _earliestOrderDate();
+    if (earliest == null) {
+      return false;
+    }
+
+    final DateTime today = _normalizeDate(DateTime.now());
+    final int availableDays = today.difference(earliest).inDays + 1;
+    return availableDays >= days;
+  }
+
+  DateTime? _earliestOrderDate() {
+    if (_orders.isEmpty) {
+      return null;
+    }
+
+    DateTime? earliest;
+    for (final order in _orders) {
+      final DateTime normalized = _normalizeDate(order.orderDate);
+      if (earliest == null || normalized.isBefore(earliest)) {
+        earliest = normalized;
+      }
+    }
+    return earliest;
+  }
+
+  DateTime _normalizeDate(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
   bool _isDateWithinRange(DateTime date, DateTime start, DateTime end) {
     final DateTime normalized = DateTime(date.year, date.month, date.day);
     return !normalized.isBefore(start) && !normalized.isAfter(end);
@@ -1191,7 +1253,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
               children: [
                 _buildChartHeader('Doanh thu'),
                 const SizedBox(height: 16),
-                SizedBox(height: 240, child: _buildRevenueChart(_salesData)),
+                _buildRevenueSection(),
               ],
             ),
           ),
@@ -1331,11 +1393,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 200,
-                  child: hasNewUserData
-                      ? _buildNewUsersChart(_salesData)
-                      : _buildEmptyChartMessage(
-                          'Chưa ghi nhận người dùng mới trong giai đoạn này',
-                        ),
+                  child: _buildNewUsersSection(hasNewUserData),
                 ),
               ],
             ),
@@ -1399,6 +1457,25 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildNewUsersSection(bool hasNewUserData) {
+    final int requiredDays = _rangeToDays(_selectedPeriod);
+    final bool hasFullHistory = _hasCompleteHistoryForRange(requiredDays);
+
+    if (!hasFullHistory && requiredDays > 7) {
+      return _buildEmptyChartMessage(
+        'Chưa có đủ dữ liệu $_selectedPeriod để hiển thị biểu đồ',
+      );
+    }
+
+    if (!hasNewUserData) {
+      return _buildEmptyChartMessage(
+        'Chưa ghi nhận người dùng mới trong giai đoạn này',
+      );
+    }
+
+    return _buildNewUsersChart(_salesData);
   }
 
   Widget _buildProductsTab() {

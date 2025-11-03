@@ -9,7 +9,10 @@ import '../../../widgets/shimmer_placeholder.dart';
 import 'product_detail_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
-  const ProductsScreen({super.key});
+  const ProductsScreen({super.key, this.initialCategory, this.initialSearch});
+
+  final String? initialCategory;
+  final String? initialSearch;
 
   @override
   State<ProductsScreen> createState() => _ProductsScreenState();
@@ -24,15 +27,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   double? _minPriceFilter;
   double? _maxPriceFilter;
 
-  final List<String> _categories = [
-    'Tất cả',
-    'Nón Snapback',
-    'Nón Bucket',
-    'Nón Fedora',
-    'Nón Beanie',
-    'Nón Trucker',
-    'Nón Baseball',
-  ];
+  List<String> _categories = <String>['Tất cả'];
 
   final List<String> _sortOptions = [
     'Mặc định',
@@ -63,6 +58,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   void initState() {
     super.initState();
+
+    if (widget.initialCategory != null && widget.initialCategory!.isNotEmpty) {
+      _selectedCategory = widget.initialCategory!;
+      if (!_categories.contains(_selectedCategory)) {
+        _categories = <String>{..._categories, _selectedCategory}.toList();
+      }
+    }
+
+    if (widget.initialSearch != null && widget.initialSearch!.isNotEmpty) {
+      _searchController.text = widget.initialSearch!;
+    }
     // Load cached products first for fast startup
     try {
       final cached = ProductCacheService.getCachedProducts();
@@ -71,6 +77,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       }
     } catch (_) {}
 
+    _loadCategories();
     _loadFirstPage();
 
     // listen to search input with debounce
@@ -89,6 +96,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -354,7 +363,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       startAfterDoc: _lastDoc,
       orderByField: orderByField,
       descending: descending,
-      category: _selectedCategory == 'Tất cả' ? null : _selectedCategory,
+      category: _selectedCategory == 'Tất cả' ? null : _selectedCategory.trim(),
       search: _searchController.text.trim().isEmpty
           ? null
           : _searchController.text.trim(),
@@ -384,8 +393,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     // Filter by category
     if (_selectedCategory != 'Tất cả') {
+      final String selectedNormalized = _normalizeCategory(_selectedCategory);
       filtered = filtered
-          .where((product) => product.category == _selectedCategory)
+          .where(
+            (product) =>
+                _normalizeCategory(product.category) == selectedNormalized,
+          )
           .toList();
     }
 
@@ -477,6 +490,39 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     return filtered;
   }
+
+  Future<void> _loadCategories() async {
+    try {
+      final List<String> fetched = await FirebaseProductService.getCategories();
+      if (!mounted) return;
+      final List<String> sanitized =
+          fetched
+              .map((category) => category.trim())
+              .where((category) => category.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+      final List<String> updated = <String>['Tất cả', ...sanitized];
+      final bool selectionValid =
+          _selectedCategory == 'Tất cả' || updated.contains(_selectedCategory);
+
+      setState(() {
+        _categories = updated;
+        if (!selectionValid) {
+          _selectedCategory = 'Tất cả';
+        }
+      });
+
+      if (!selectionValid) {
+        await _loadFirstPage();
+      }
+    } catch (_) {
+      // ignore load failure; static defaults remain available
+    }
+  }
+
+  String _normalizeCategory(String value) => value.trim().toLowerCase();
 
   Widget _buildProductCard(HatProduct product) {
     final bool isOutOfStock = product.stock <= 0;

@@ -226,20 +226,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 20),
 
-                // Đăng nhập bằng sinh trắc học
-                OutlinedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _showComingSoon('Đăng nhập bằng vân tay'),
-                  icon: const Icon(Icons.fingerprint),
-                  label: const Text('Đăng nhập bằng vân tay'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
                 // Đăng nhập bằng mạng xã hội
                 Row(
                   children: [

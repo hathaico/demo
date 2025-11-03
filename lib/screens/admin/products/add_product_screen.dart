@@ -61,8 +61,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: const Text('Thêm sản phẩm mới'),
-        backgroundColor: Colors.grey.shade800,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+        foregroundColor: const Color.fromARGB(255, 0, 0, 0),
         elevation: 0,
         actions: [
           TextButton(

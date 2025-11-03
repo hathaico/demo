@@ -364,100 +364,66 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Grid sản phẩm hot
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverLayoutBuilder(
-                builder: (context, constraints) {
-                  int crossAxisCount = 2;
-                  if (constraints.crossAxisExtent > 600) {
-                    crossAxisCount = 3;
-                  }
-                  if (constraints.crossAxisExtent > 900) {
-                    crossAxisCount = 4;
-                  }
-
-                  return StreamBuilder<List<HatProduct>>(
-                    stream: FirebaseProductService.getHotProductsStream(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        // Show shimmer placeholders while loading hot products
-                        return shimmerSliverGrid(
-                          count: 4,
-                          crossAxisCount: crossAxisCount,
-                          childAspectRatio: 0.7,
-                        );
-                      }
-
-                      if (snapshot.hasError) {
-                        return SliverToBoxAdapter(
-                          child: Center(
-                            child: Text('Lỗi tải dữ liệu: ${snapshot.error}'),
-                          ),
-                        );
-                      }
-
-                      final hotProducts = snapshot.data ?? [];
-
-                      return SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          childAspectRatio: 0.7,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final product = hotProducts[index];
-                          return _buildProductCard(product);
-                        }, childCount: hotProducts.length),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-
-            // Tính năng đặc biệt
+            // Danh sách sản phẩm hot dạng trượt ngang
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tính Năng Đặc Biệt',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildFeatureCard(
-                            'Thử Nón Ảo',
-                            'Thử Nón AR',
-                            Icons.camera_alt,
-                            Colors.purple,
+              child: SizedBox(
+                height: 250,
+                child: StreamBuilder<List<HatProduct>>(
+                  stream: FirebaseProductService.getHotProductsStream(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: 4,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 12),
+                          itemBuilder: (_, __) => _buildHotPlaceholderCard(),
+                        ),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Center(
+                          child: Text('Lỗi tải dữ liệu: ${snapshot.error}'),
+                        ),
+                      );
+                    }
+
+                    final List<HatProduct> hotProducts = snapshot.data ?? [];
+                    if (hotProducts.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Hiện chưa có sản phẩm nổi bật.',
+                            style: TextStyle(color: Colors.grey.shade600),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildFeatureCard(
-                            'Cá Nhân Hóa',
-                            'Thiết Kế Riêng',
-                            Icons.palette,
-                            Colors.pink,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      );
+                    }
+
+                    return ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: hotProducts.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final HatProduct product = hotProducts[index];
+                        return SizedBox(
+                          width: 180,
+                          child: _buildProductCard(product),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
             ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
           ],
         ),
@@ -648,47 +614,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFeatureCard(
-    String title,
-    String subtitle,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          Text(
-            subtitle,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
+  Widget _buildHotPlaceholderCard() {
+    return SizedBox(width: 180, height: 250, child: const ShimmerProductCard());
   }
 }

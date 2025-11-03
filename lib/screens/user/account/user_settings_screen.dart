@@ -17,10 +17,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
   bool _notificationsEnabled = true;
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
-  bool _biometricEnabled = false;
   bool _autoLogin = false;
-  String _language = 'vi';
-  String _themeMode = 'system';
 
   @override
   void initState() {
@@ -34,10 +31,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       _notificationsEnabled = settings['notifications'] ?? true;
       _soundEnabled = settings['sound'] ?? true;
       _vibrationEnabled = settings['vibration'] ?? true;
-      _biometricEnabled = settings['biometric'] ?? false;
       _autoLogin = settings['autoLogin'] ?? false;
-      _language = settings['language'] ?? 'vi';
-      _themeMode = settings['themeMode'] ?? 'system';
     });
   }
 
@@ -89,15 +83,6 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           // Bảo mật
           _buildSectionTitle('Bảo mật'),
           _buildSwitchTile(
-            title: 'Đăng nhập sinh trắc học',
-            subtitle: 'Sử dụng vân tay hoặc Face ID',
-            value: _biometricEnabled,
-            onChanged: (value) async {
-              setState(() => _biometricEnabled = value);
-              await SettingsService.setBiometricEnabled(value);
-            },
-          ),
-          _buildSwitchTile(
             title: 'Tự động đăng nhập',
             subtitle: 'Giữ trạng thái đăng nhập',
             value: _autoLogin,
@@ -105,23 +90,6 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
               setState(() => _autoLogin = value);
               await SettingsService.setAutoLogin(value);
             },
-          ),
-
-          const SizedBox(height: 24),
-
-          // Giao diện
-          _buildSectionTitle('Giao diện'),
-          ListTile(
-            title: const Text('Ngôn ngữ'),
-            subtitle: Text(_getLanguageName(_language)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showLanguagePicker(),
-          ),
-          ListTile(
-            title: const Text('Chủ đề'),
-            subtitle: Text(_getThemeModeName(_themeMode)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showThemePicker(),
           ),
 
           const SizedBox(height: 24),
@@ -220,98 +188,6 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       subtitle: Text(subtitle),
       value: value,
       onChanged: enabled ? onChanged : null,
-    );
-  }
-
-  String _getLanguageName(String code) {
-    switch (code) {
-      case 'vi':
-        return 'Tiếng Việt';
-      case 'en':
-        return 'English';
-      case 'zh':
-        return '中文';
-      case 'ja':
-        return '日本語';
-      default:
-        return 'Tiếng Việt';
-    }
-  }
-
-  String _getThemeModeName(String mode) {
-    switch (mode) {
-      case 'system':
-        return 'Theo hệ thống';
-      case 'light':
-        return 'Sáng';
-      case 'dark':
-        return 'Tối';
-      default:
-        return 'Theo hệ thống';
-    }
-  }
-
-  void _showLanguagePicker() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Chọn ngôn ngữ'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildLanguageOption('vi', 'Tiếng Việt'),
-            _buildLanguageOption('en', 'English'),
-            _buildLanguageOption('zh', '中文'),
-            _buildLanguageOption('ja', '日本語'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLanguageOption(String code, String name) {
-    final isSelected = _language == code;
-    return ListTile(
-      title: Text(name),
-      trailing: isSelected ? const Icon(Icons.check, color: Colors.blue) : null,
-      selected: isSelected,
-      onTap: () async {
-        setState(() => _language = code);
-        await SettingsService.setLanguage(code);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  void _showThemePicker() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Chọn chủ đề'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildThemeOption('system', 'Theo hệ thống', Icons.brightness_auto),
-            _buildThemeOption('light', 'Sáng', Icons.light_mode),
-            _buildThemeOption('dark', 'Tối', Icons.dark_mode),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThemeOption(String mode, String name, IconData icon) {
-    final isSelected = _themeMode == mode;
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(name),
-      trailing: isSelected ? const Icon(Icons.check, color: Colors.blue) : null,
-      selected: isSelected,
-      onTap: () async {
-        setState(() => _themeMode = mode);
-        await SettingsService.setThemeMode(mode);
-        Navigator.pop(context);
-      },
     );
   }
 

@@ -179,6 +179,15 @@ class FirebaseProductService {
     return 0;
   }
 
+  static int _normalizeReviewCount(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+
   static Future<void> _notifyProductRestocked({
     required String productId,
     required String productName,
@@ -268,6 +277,224 @@ class FirebaseProductService {
           },
         );
       } catch (_) {}
+    }
+  }
+
+  static Future<Map<String, dynamic>> upsertProductReview({
+    required String productId,
+    required String userId,
+    required String userName,
+    required double rating,
+    required String comment,
+    String? reviewId,
+  }) async {
+    final double sanitizedRating = rating.clamp(1, 5);
+    final String trimmedComment = comment.trim();
+    if (trimmedComment.isEmpty) {
+      return {
+        'success': false,
+        'error': 'Nội dung đánh giá không được để trống.',
+      };
+    }
+
+    String? targetReviewId = reviewId;
+    if (targetReviewId == null || targetReviewId.isEmpty) {
+      try {
+        final existing = await _firestore
+            .collection('reviews')
+            .where('productId', isEqualTo: productId)
+            .where('userId', isEqualTo: userId)
+            .limit(1)
+            .get();
+        if (existing.docs.isNotEmpty) {
+          targetReviewId = existing.docs.first.id;
+        }
+      } catch (_) {
+        // Ignore lookup errors, treat as new review.
+      }
+    }
+
+    final DocumentReference<Map<String, dynamic>> productRef = _firestore
+        .collection(_collection)
+        .doc(productId);
+    final DocumentReference<Map<String, dynamic>> reviewRef =
+        (targetReviewId != null && targetReviewId.isNotEmpty)
+        ? _firestore.collection('reviews').doc(targetReviewId)
+        : _firestore.collection('reviews').doc();
+
+    try {
+      final result = await _firestore.runTransaction<Map<String, dynamic>>((
+        transaction,
+      ) async {
+        final productSnapshot = await transaction.get(productRef);
+        if (!productSnapshot.exists) {
+          throw StateError('Sản phẩm không tồn tại');
+        }
+
+        final Map<String, dynamic> productData = Map<String, dynamic>.from(
+          productSnapshot.data() ?? {},
+        );
+        final double currentAverage = (productData['rating'] ?? 0).toDouble();
+        final int currentCount = _normalizeReviewCount(
+          productData['reviewCount'],
+        );
+
+        DocumentSnapshot<Map<String, dynamic>>? reviewSnapshot;
+        try {
+          reviewSnapshot = await transaction.get(reviewRef);
+        } catch (_) {
+          reviewSnapshot = null;
+        }
+
+        final bool isUpdate = reviewSnapshot?.exists == true;
+        final double previousRating = isUpdate
+            ? ((reviewSnapshot!.data()?['rating']) as num?)?.toDouble() ??
+                  sanitizedRating
+            : 0;
+
+        int newCount = currentCount;
+        double newAverage;
+        if (isUpdate && currentCount > 0) {
+          final double total = currentAverage * currentCount;
+          newAverage =
+              (total - previousRating + sanitizedRating) / currentCount;
+        } else {
+          newCount = currentCount + 1;
+          final double total = currentAverage * currentCount + sanitizedRating;
+          newAverage = newCount == 0 ? 0 : total / newCount;
+        }
+
+        newAverage = double.parse(newAverage.toStringAsFixed(1));
+
+        transaction.update(productRef, {
+          'rating': newAverage,
+          'reviewCount': newCount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        final Map<String, dynamic> payload = {
+          'productId': productId,
+          'userId': userId,
+          'userName': userName,
+          'rating': sanitizedRating,
+          'comment': trimmedComment,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        if (isUpdate) {
+          transaction.update(reviewRef, payload);
+        } else {
+          payload['createdAt'] = FieldValue.serverTimestamp();
+          transaction.set(reviewRef, payload);
+        }
+
+        return {
+          'averageRating': newAverage,
+          'reviewCount': newCount,
+          'reviewId': reviewRef.id,
+        };
+      }, maxAttempts: 3);
+
+      return {'success': true, ...result};
+    } catch (e) {
+      return {'success': false, 'error': 'Không thể gửi đánh giá: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteProductReview({
+    required String productId,
+    required String userId,
+    String? reviewId,
+  }) async {
+    late final DocumentReference<Map<String, dynamic>> reviewRef;
+
+    if (reviewId != null && reviewId.isNotEmpty) {
+      reviewRef = _firestore.collection('reviews').doc(reviewId);
+    } else {
+      try {
+        final query = await _firestore
+            .collection('reviews')
+            .where('productId', isEqualTo: productId)
+            .where('userId', isEqualTo: userId)
+            .limit(1)
+            .get();
+        if (query.docs.isEmpty) {
+          return {'success': false, 'error': 'Không tìm thấy đánh giá để xóa.'};
+        }
+        reviewRef = query.docs.first.reference;
+      } catch (e) {
+        return {'success': false, 'error': 'Không thể tìm đánh giá: $e'};
+      }
+    }
+
+    final DocumentReference<Map<String, dynamic>> productRef = _firestore
+        .collection(_collection)
+        .doc(productId);
+
+    try {
+      final result = await _firestore.runTransaction<Map<String, dynamic>>((
+        transaction,
+      ) async {
+        final productSnapshot = await transaction.get(productRef);
+        if (!productSnapshot.exists) {
+          throw StateError('Sản phẩm không tồn tại');
+        }
+
+        final reviewSnapshot = await transaction.get(reviewRef);
+        if (!reviewSnapshot.exists) {
+          throw StateError('Đánh giá không tồn tại');
+        }
+
+        final Map<String, dynamic> reviewData = Map<String, dynamic>.from(
+          reviewSnapshot.data() ?? {},
+        );
+        final String ownerId = (reviewData['userId'] ?? '').toString();
+        if (ownerId.isNotEmpty && ownerId != userId) {
+          throw StateError('Bạn không thể xóa đánh giá này.');
+        }
+
+        final double reviewRating =
+            (reviewData['rating'] as num?)?.toDouble() ?? 0;
+
+        final Map<String, dynamic> productData = Map<String, dynamic>.from(
+          productSnapshot.data() ?? {},
+        );
+        final double currentAverage = (productData['rating'] ?? 0).toDouble();
+        final int currentCount = _normalizeReviewCount(
+          productData['reviewCount'],
+        );
+
+        final int newCount = currentCount > 0 ? currentCount - 1 : 0;
+        double newAverage;
+        if (newCount == 0) {
+          newAverage = 0;
+        } else {
+          final double total = currentAverage * currentCount;
+          newAverage = (total - reviewRating) / newCount;
+        }
+
+        if (newAverage.isNaN || newAverage.isInfinite) {
+          newAverage = 0;
+        }
+
+        newAverage = double.parse(newAverage.toStringAsFixed(1));
+        if (newAverage < 0) newAverage = 0;
+        if (newAverage > 5) newAverage = 5;
+
+        transaction.update(productRef, {
+          'rating': newAverage,
+          'reviewCount': newCount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        transaction.delete(reviewRef);
+
+        return {'averageRating': newAverage, 'reviewCount': newCount};
+      }, maxAttempts: 3);
+
+      return {'success': true, ...result};
+    } catch (e) {
+      return {'success': false, 'error': 'Không thể xóa đánh giá: $e'};
     }
   }
 
@@ -407,34 +634,56 @@ class FirebaseProductService {
     String? search,
   }) async {
     try {
+      final bool hasCategoryFilter = category != null && category.isNotEmpty;
+      final bool hasSearch = search != null && search.trim().isNotEmpty;
+
       Query query = _firestore.collection(_collection);
 
-      // Apply category filter server-side when provided
-      if (category != null && category.isNotEmpty) {
+      if (hasCategoryFilter) {
         query = query.where('category', isEqualTo: category);
       }
 
-      // Apply ordering and pagination
-      query = query.orderBy(orderByField, descending: descending).limit(limit);
+      if (hasSearch) {
+        final String keyword = search.trim().toLowerCase();
+        query = _firestore
+            .collection(_collection)
+            .orderBy('name_lower')
+            .startAt([keyword])
+            .endAt(['$keyword\uf8ff']);
+        // Search results ignore category filter to keep query lightweight.
+      } else {
+        query = query.orderBy(orderByField, descending: descending);
+      }
 
       if (startAfterDoc != null) {
         query = query.startAfterDocument(startAfterDoc);
       }
 
-      // If search provided, prefer server-side prefix search on a `name_lower` field.
-      // Note: this requires documents to contain a `name_lower` lowercase field.
-      if (search != null && search.trim().isNotEmpty) {
-        final s = search.trim().toLowerCase();
-        // When using name_lower search we must order by that field.
-        query = _firestore
-            .collection(_collection)
-            .orderBy('name_lower')
-            .startAt([s])
-            .endAt(['$s\uf8ff'])
-            .limit(limit);
-      }
+      query = query.limit(limit);
 
-      QuerySnapshot snapshot = await query.get();
+      QuerySnapshot snapshot;
+      try {
+        snapshot = await query.get();
+      } on FirebaseException catch (e) {
+        final String message = e.message ?? '';
+        final bool isMissingIndex =
+            e.code == 'failed-precondition' && message.contains('index');
+
+        if (!hasSearch && isMissingIndex) {
+          // Re-run without ordering so Firestore doesn't require a composite index.
+          Query fallback = _firestore.collection(_collection);
+          if (hasCategoryFilter) {
+            fallback = fallback.where('category', isEqualTo: category);
+          }
+          if (startAfterDoc != null) {
+            fallback = fallback.startAfterDocument(startAfterDoc);
+          }
+          fallback = fallback.limit(limit);
+          snapshot = await fallback.get();
+        } else {
+          rethrow;
+        }
+      }
 
       List<HatProduct> products = snapshot.docs.map((doc) {
         final Map<String, dynamic> data = Map<String, dynamic>.from(
